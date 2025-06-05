@@ -8,30 +8,25 @@ from datetime import datetime
 from .health_monitor import HealthMonitor
 from .temperature import TemperatureController
 from .validator import ResponseValidator, try_parse_json
+from .models import BehavioralContractSpec
 
 logger = logging.getLogger(__name__)
 
 class BehavioralContract:
     def __init__(self, contract_spec: Dict):
-        self.version = contract_spec.get("version", "1.0")
-        self.description = contract_spec.get("description", "")
-        self.role = contract_spec.get("role", "default")
-        self.policy = contract_spec.get("policy", {})
-        self.behavioral_flags = contract_spec.get("behavioral_flags", {})
-        self.response_contract = contract_spec.get("response_contract", {})
-        self.health = contract_spec.get("health", {})
-        self.escalation = contract_spec.get("escalation", {})
-
+        # Validate and parse the contract specification
+        self.spec = BehavioralContractSpec(**contract_spec)
+        
         # Initialize components
         self.health_monitor = HealthMonitor()
         self.temp_controller = TemperatureController(
-            self.behavioral_flags.get("temperature_control", {}).get("mode", "fixed"),
-            self.behavioral_flags.get("temperature_control", {}).get("range", [0.2, 0.6])
+            self.spec.behavioral_flags.temperature_control.mode,
+            self.spec.behavioral_flags.temperature_control.range
         )
         self.response_validator = ResponseValidator(
-            self.response_contract.get("output_format", {}).get("required_fields", [])
+            self.spec.response_contract.output_format.required_fields
         )
-        logger.info(f"BehavioralContract initialized with version={self.version}, role={self.role}")
+        logger.info(f"BehavioralContract initialized with version={self.spec.version}, role={self.spec.role}")
 
     def is_suspicious_behavior(self, response: dict, context: dict = None) -> bool:
         """Detect suspicious behavior by comparing response with context."""
@@ -92,13 +87,13 @@ class BehavioralContract:
         logger.info(json.dumps({
             "timestamp": datetime.now().isoformat(),
             "event_type": event_type,
-            "contract_version": self.version,
-            "role": self.role,
+            "contract_version": self.spec.version,
+            "role": self.spec.role,
             "data": data
         }))
 
     def handle_escalation(self, reason: str):
-        escalation_action = self.escalation.get(f"on_{reason}", "fallback")
+        escalation_action = getattr(self.spec.escalation, f"on_{reason}", "fallback")
         logger.warning(f"Handling escalation for reason: {reason}, action: {escalation_action}")
         self.log_contract_event("escalation", {
             "reason": reason,
@@ -123,10 +118,10 @@ def behavioral_contract(contract_spec: Dict, contract_instance: Optional[Behavio
                     "status": "unhealthy",
                     "action": "fallback"
                 })
-                return contract.response_contract["output_format"]["on_failure"]["fallback"]
+                return contract.spec.response_contract.output_format.on_failure["fallback"].dict()
 
             # Execute with retries
-            max_retries = contract.response_contract["output_format"]["on_failure"].get("max_retries", 1)
+            max_retries = contract.spec.response_contract.output_format.on_failure.get("max_retries", 1)
             for attempt in range(max_retries + 1):
                 logger.info(f"Attempt {attempt + 1} of {max_retries + 1}")
                 try:
@@ -167,11 +162,11 @@ def behavioral_contract(contract_spec: Dict, contract_instance: Optional[Behavio
 
                         # Response time check
                         response_time = (time.time() - start_time) * 1000
-                        if response_time > contract.response_contract.get("max_response_time_ms", 5000):
+                        if response_time > contract.spec.response_contract.output_format.max_response_time_ms:
                             logger.warning(f"Response time {response_time}ms exceeded threshold")
                             contract.log_contract_event("performance_warning", {
                                 "response_time_ms": response_time,
-                                "threshold_ms": contract.response_contract["max_response_time_ms"]
+                                "threshold_ms": contract.spec.response_contract.output_format.max_response_time_ms
                             })
 
                         contract.temp_controller.adjust(True)
@@ -198,7 +193,7 @@ def behavioral_contract(contract_spec: Dict, contract_instance: Optional[Behavio
             # If we get here, all retries failed
             logger.warning("All attempts failed, escalating to fallback")
             contract.handle_escalation("unexpected_output")
-            return contract.response_contract["output_format"]["on_failure"]["fallback"]
+            return contract.spec.response_contract.output_format.on_failure["fallback"].dict()
 
         return wrapper
     return decorator

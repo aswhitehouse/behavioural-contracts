@@ -16,13 +16,14 @@ TEST_CONTRACT = {
         "output_format": {
             "required_fields": ["recommendation", "confidence"],
             "on_failure": {
-                "max_retries": 1,
                 "fallback": {
-                    "recommendation": "HOLD",
-                    "confidence": "low"
+                    "action": "HOLD",
+                    "confidence": "low",
+                    "reason": "Fallback due to error"
                 }
             },
-            "max_response_time_ms": 1000
+            "max_response_time_ms": 1000,
+            "max_retries": 1
         }
     },
     "health": {
@@ -56,7 +57,7 @@ def test_invalid_response_fallback():
         }
     
     result = test_agent({"indicators": {"rsi": 50}})
-    assert result["recommendation"] == "HOLD"
+    assert result["action"] == "HOLD"
     assert result["confidence"] == "low"
 
 def test_suspicious_behavior_detection():
@@ -105,5 +106,5 @@ def test_health_monitoring():
     
     # First failure should trigger retry
     result = test_agent({"indicators": {"rsi": 50}})
-    assert result["recommendation"] == "HOLD"
+    assert result["action"] == "HOLD"
     assert result["confidence"] == "low" 
