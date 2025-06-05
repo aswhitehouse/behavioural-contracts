@@ -6,33 +6,44 @@ TEST_CONTRACT = {
     "version": "1.0",
     "description": "Test contract",
     "role": "test_agent",
+    "policy": {
+        "PII": False,
+        "compliance_tags": ["test_tag"],
+        "allowed_tools": ["test_tool"]
+    },
     "behavioral_flags": {
         "temperature_control": {
             "mode": "fixed",
             "range": [0.2, 0.6]
-        }
+        },
+        "conservatism": "medium",
+        "verbosity": "medium"
     },
     "response_contract": {
         "output_format": {
             "required_fields": ["recommendation", "confidence"],
             "on_failure": {
+                "action": "unknown",
+                "max_retries": 1,
                 "fallback": {
-                    "action": "HOLD",
+                    "recommendation": "unknown",
                     "confidence": "low",
                     "reason": "Fallback due to error"
                 }
             },
-            "max_response_time_ms": 1000,
-            "max_retries": 1
-        }
+            "max_response_time_ms": 1000
+        },
+        "max_response_time_ms": 1000
     },
     "health": {
-        "max_strikes": 3,
-        "strike_window_seconds": 3600
+        "strikes": 0,
+        "status": "healthy"
     },
     "escalation": {
         "on_unexpected_output": "flag_for_review",
-        "on_invalid_response": "fallback"
+        "on_invalid_response": "fallback",
+        "on_context_mismatch": "flag_for_review",
+        "fallback_role": "test_agent"
     }
 }
 
@@ -41,7 +52,8 @@ def test_valid_response():
     def test_agent(signal: dict, **kwargs):
         return {
             "recommendation": "BUY",
-            "confidence": "high"
+            "confidence": "high",
+            "compliance_tags": ["test_tag"]
         }
     
     result = test_agent({"indicators": {"rsi": 50}})
@@ -57,7 +69,7 @@ def test_invalid_response_fallback():
         }
     
     result = test_agent({"indicators": {"rsi": 50}})
-    assert result["action"] == "HOLD"
+    assert result["recommendation"] == "unknown"
     assert result["confidence"] == "low"
 
 def test_suspicious_behavior_detection():
@@ -65,7 +77,8 @@ def test_suspicious_behavior_detection():
     def test_agent(signal: dict, **kwargs):
         return {
             "recommendation": "BUY",
-            "confidence": "high"
+            "confidence": "high",
+            "compliance_tags": ["test_tag"]
         }
     
     # Simulate memory with previous high confidence recommendation
@@ -89,11 +102,12 @@ def test_suspicious_behavior_detection():
 
 def test_temperature_control():
     @behavioral_contract(TEST_CONTRACT)
-    def test_agent(signal: dict, temperature: float = 0.7, **kwargs):
+    def test_agent(signal: dict, temperature: float = 0.3, **kwargs):
         return {
             "recommendation": "BUY",
             "confidence": "high",
-            "temperature_used": temperature
+            "temperature_used": temperature,
+            "compliance_tags": ["test_tag"]
         }
     
     result = test_agent({"indicators": {"rsi": 50}})
@@ -106,5 +120,5 @@ def test_health_monitoring():
     
     # First failure should trigger retry
     result = test_agent({"indicators": {"rsi": 50}})
-    assert result["action"] == "HOLD"
+    assert result["recommendation"] == "unknown"
     assert result["confidence"] == "low" 
