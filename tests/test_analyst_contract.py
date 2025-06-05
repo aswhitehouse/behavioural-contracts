@@ -25,16 +25,16 @@ ANALYST_CONTRACT = {
         "output_format": {
             "type": "object",
             "required_fields": [
-                "recommendation", "confidence", "summary", "reasoning"
+                "decision", "confidence", "summary", "reasoning"
             ],
             "on_failure": {
                 "action": "resubmit_prompt",
                 "max_retries": 1,
                 "fallback": {
-                    "recommendation": "unknown",
+                    "decision": "unknown",
                     "confidence": "low",
                     "summary": "Recommendation rejected due to suspicious behavior.",
-                    "reasoning": "The model's recommendation was rejected because it changed a high confidence recommendation too quickly. This requires additional validation."
+                    "reasoning": "The model's decision was rejected because it changed a high confidence decision too quickly. This requires additional validation."
                 }
             }
         },
@@ -57,7 +57,7 @@ def test_valid_response():
     @behavioral_contract(ANALYST_CONTRACT)
     def analyst_agent(signal: dict, **kwargs):
         return {
-            "recommendation": "BUY",
+            "decision": "BUY",
             "confidence": "high",
             "summary": "Strong buy signal based on technical indicators",
             "reasoning": "Multiple indicators show bullish momentum",
@@ -66,7 +66,7 @@ def test_valid_response():
         }
     
     result = analyst_agent({"indicators": {"rsi": 50}})
-    assert result["recommendation"] == "BUY"
+    assert result["decision"] == "BUY"
     assert result["confidence"] == "high"
     assert "summary" in result
     assert "reasoning" in result
@@ -76,7 +76,7 @@ def test_pii_detection():
     @behavioral_contract(ANALYST_CONTRACT)
     def analyst_agent(signal: dict, **kwargs):
         return {
-            "recommendation": "BUY",
+            "decision": "BUY",
             "confidence": "high",
             "summary": "Contact us at test@example.com for more details",
             "reasoning": "Multiple indicators show bullish momentum",
@@ -84,7 +84,7 @@ def test_pii_detection():
         }
     
     result = analyst_agent({"indicators": {"rsi": 50}})
-    assert result["recommendation"] == "unknown"
+    assert result["decision"] == "unknown"
     assert result["confidence"] == "low"
     assert "pii" in result["reasoning"].lower()
 
@@ -92,7 +92,7 @@ def test_compliance_tags():
     @behavioral_contract(ANALYST_CONTRACT)
     def analyst_agent(signal: dict, **kwargs):
         return {
-            "recommendation": "BUY",
+            "decision": "BUY",
             "confidence": "high",
             "summary": "Strong buy signal",
             "reasoning": "Multiple indicators show bullish momentum"
@@ -100,14 +100,14 @@ def test_compliance_tags():
         }
     
     result = analyst_agent({"indicators": {"rsi": 50}})
-    assert result["recommendation"] == "unknown"
+    assert result["decision"] == "unknown"
     assert "compliance" in result["reasoning"].lower()
 
 def test_allowed_tools():
     @behavioral_contract(ANALYST_CONTRACT)
     def analyst_agent(signal: dict, **kwargs):
         return {
-            "recommendation": "BUY",
+            "decision": "BUY",
             "confidence": "high",
             "summary": "Strong buy signal",
             "reasoning": "Multiple indicators show bullish momentum",
@@ -116,34 +116,34 @@ def test_allowed_tools():
         }
     
     result = analyst_agent({"indicators": {"rsi": 50}})
-    assert result["recommendation"] == "unknown"
+    assert result["decision"] == "unknown"
     assert "unauthorized" in result["reasoning"].lower()
 
 def test_high_confidence_change():
     @behavioral_contract(ANALYST_CONTRACT)
     def analyst_agent(signal: dict, **kwargs):
         return {
-            "recommendation": "SELL",  # Changed from previous BUY
+            "decision": "SELL",  # Changed from previous BUY
             "confidence": "high",
             "summary": "Strong sell signal",
             "reasoning": "Multiple indicators show bearish momentum",
             "compliance_tags": ["EU-AI-ACT"],
-            "previous_recommendation": "BUY"  # Previous high confidence recommendation
+            "previous_decision": "BUY"  # Previous high confidence recommendation
         }
 
     result = analyst_agent({"indicators": {"rsi": 50}})
     # If high confidence recommendation is changed, fallback should be returned and flagged_for_review should be True
-    if result["recommendation"] == "unknown":
+    if result["decision"] == "unknown":
         assert result["flagged_for_review"] is True
         assert "changed" in result["reasoning"].lower()
     else:
-        assert result["recommendation"] == "SELL"
+        assert result["decision"] == "SELL"
 
 def test_temperature_control():
     @behavioral_contract(ANALYST_CONTRACT)
     def analyst_agent(signal: dict, temperature: float = 0.7, **kwargs):
         return {
-            "recommendation": "BUY",
+            "decision": "BUY",
             "confidence": "high",
             "summary": "Strong buy signal",
             "reasoning": "Multiple indicators show bullish momentum",
@@ -153,7 +153,7 @@ def test_temperature_control():
 
     result = analyst_agent({"indicators": {"rsi": 50}})
     # If temperature is out of range, fallback should be returned
-    if result["recommendation"] == "unknown":
+    if result["decision"] == "unknown":
         assert result["confidence"] == "low"
         assert "temperature" in result["reasoning"].lower()
     else:
@@ -166,7 +166,7 @@ def test_response_time():
     def analyst_agent(signal: dict, **kwargs):
         time.sleep(0.005)  # Simulate slow response
         return {
-            "recommendation": "BUY",
+            "decision": "BUY",
             "confidence": "high",
             "summary": "Strong buy signal",
             "reasoning": "Multiple indicators show bullish momentum",
@@ -175,11 +175,11 @@ def test_response_time():
 
     result = analyst_agent({"indicators": {"rsi": 50}})
     # If response is too slow, fallback should be returned
-    if result["recommendation"] == "unknown":
+    if result["decision"] == "unknown":
         assert result["confidence"] == "low"
         assert "timeout" in result["reasoning"].lower()
     else:
-        assert result["recommendation"] == "BUY"
+        assert result["decision"] == "BUY"
 
 def test_health_monitoring():
     @behavioral_contract(ANALYST_CONTRACT)
@@ -188,6 +188,45 @@ def test_health_monitoring():
     
     # First failure should trigger retry
     result = analyst_agent({"indicators": {"rsi": 50}})
-    assert result["recommendation"] == "unknown"
+    assert result["decision"] == "unknown"
     assert result["confidence"] == "low"
-    assert "error" in result["reasoning"].lower() 
+    assert "error" in result["reasoning"].lower()
+
+def test_invalid_response_fallback():
+    @behavioral_contract(ANALYST_CONTRACT)
+    def test_agent(signal: dict, **kwargs):
+        return {
+            "decision": "BUY"
+            # Missing required field: confidence
+        }
+    
+    result = test_agent({"indicators": {"rsi": 50}})
+    assert result["decision"] == "unknown"
+    assert result["confidence"] == "low"
+
+def test_suspicious_behavior_detection():
+    @behavioral_contract(ANALYST_CONTRACT)
+    def test_agent(signal: dict, **kwargs):
+        return {
+            "decision": "APPROVE",
+            "confidence": "high",
+            "summary": "Strong approval signal",
+            "reasoning": "Multiple factors support approval",
+            "compliance_tags": ["test_tag"]
+        }
+    
+    # Test high confidence change pattern
+    result = test_agent(
+        {"context_suggestion": "REJECT"},  # Context suggests one thing
+        context={
+            "memory": [{
+                "analysis": {
+                    "decision": "REJECT",
+                    "confidence": "high"
+                }
+            }],
+            "pattern_history": ["REJECT", "REJECT", "REJECT"]  # Established pattern
+        }
+    )
+    assert result["flagged_for_review"] is True
+    assert "strike_reason" in result 

@@ -1,4 +1,3 @@
-import pytest
 import time
 from behavioral_contracts.health_monitor import HealthMonitor
 

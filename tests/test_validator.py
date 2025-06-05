@@ -1,25 +1,27 @@
-import pytest
 from behavioral_contracts.validator import ResponseValidator, try_parse_json
 
 def test_required_fields_validation():
-    validator = ResponseValidator(["recommendation", "confidence"])
-    
+    validator = ResponseValidator(["decision", "confidence"])
+    dummy_policy = {}
+    dummy_behavioral_flags = {"temperature_control": {"range": [0.2, 0.6]}}
+    dummy_response_contract = {"max_response_time_ms": 1000}
+
     # Valid response
     assert validator.validate({
-        "recommendation": "BUY",
+        "decision": "BUY",
         "confidence": "high"
-    }) == (True, '')
+    }, dummy_policy, dummy_behavioral_flags, dummy_response_contract) == (True, '')
     
-    # Invalid response - missing field
+    # Missing required field
     assert validator.validate({
-        "recommendation": "BUY"
-    }) == (False, 'missing required fields')
+        "decision": "BUY"
+    }, dummy_policy, dummy_behavioral_flags, dummy_response_contract) == (False, 'missing required fields')
     
     # Invalid response - wrong type (should still pass as only presence is checked)
     assert validator.validate({
-        "recommendation": 123,  # Should be string
+        "decision": 123,  # Should be string
         "confidence": "high"
-    }) == (True, '')
+    }, dummy_policy, dummy_behavioral_flags, dummy_response_contract) == (True, '')
 
 def test_json_parsing():
     # Valid JSON string

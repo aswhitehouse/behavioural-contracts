@@ -16,7 +16,7 @@ class HealthMonitor:
 
     def add_strike(self, reason: str = None):
         """Add a strike for unusual behavior that might warrant agent replacement."""
-        # Check if strike window has expired
+        
         if self.strikes > 0:
             window_expiry = self.last_reset + timedelta(seconds=self.strike_window_seconds)
             if datetime.now() > window_expiry:

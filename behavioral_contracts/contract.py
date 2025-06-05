@@ -1,24 +1,20 @@
 import json
-import functools
-import time
 import logging
-from typing import Dict, Optional, Callable, Any
+from typing import Dict, Callable, Any
 from datetime import datetime
 from functools import wraps
 
 from .health_monitor import HealthMonitor
 from .temperature import TemperatureController
-from .validator import ResponseValidator, try_parse_json
+from .validator import ResponseValidator
 from .models import BehavioralContractSpec
 
 logger = logging.getLogger(__name__)
 
 class BehavioralContract:
     def __init__(self, contract_spec: Dict):
-        # Validate and parse the contract specification
         self.spec = BehavioralContractSpec(**contract_spec)
         
-        # Initialize components
         self.health_monitor = HealthMonitor()
         self.temp_controller = TemperatureController(
             self.spec.behavioral_flags.temperature_control.mode,
@@ -30,55 +26,51 @@ class BehavioralContract:
         logger.info(f"BehavioralContract initialized with version={self.spec.version}, role={self.spec.role}")
 
     def is_suspicious_behavior(self, response: dict, context: dict = None) -> bool:
-        """Detect suspicious behavior by comparing response with context."""
+        """Detect suspicious behavior by comparing response with context.
+        
+        General patterns that might indicate suspicious behavior:
+        1. High confidence changes - if a system was very confident about a decision
+           and suddenly changes it, this might be suspicious
+        2. Context mismatch - if the current context suggests one thing but the
+           response suggests another, this might be suspicious
+        3. Pattern breaks - if the system suddenly breaks from established patterns
+           without clear reason
+        """
         if not context or 'memory' not in context:
             logger.warning("No context or memory provided for suspicious behavior check")
             return False
 
-        # Get the current recommendation
-        current_rec = response.get('recommendation', '').lower()
-        if not current_rec:
-            logger.warning("No recommendation in current response")
+        current_decision = response.get('decision', '').lower()
+        if not current_decision:
+            logger.warning("No decision in current response")
             return False
 
-        # Get the stale memory recommendation
         stale_memory = context.get('memory', [])
         if not stale_memory:
             logger.warning("No stale memory found in context")
             return False
 
-        # Get the most recent memory
         latest_memory = stale_memory[0].get('analysis', {})
-        stale_rec = latest_memory.get('recommendation', '').lower()
+        stale_decision = latest_memory.get('decision', '').lower()
         stale_confidence = latest_memory.get('confidence', '').lower()
-        if not stale_rec:
-            logger.warning("No recommendation in stale memory")
+        if not stale_decision:
+            logger.warning("No decision in stale memory")
             return False
 
-        logger.info(f"Comparing recommendations - Stale: {stale_rec} ({stale_confidence}), Current: {current_rec}")
+        logger.info(f"Comparing decisions - Stale: {stale_decision} ({stale_confidence}), Current: {current_decision}")
 
-        # Check for suspicious behavior:
-        # 1. If the model had a high confidence recommendation and is now changing it
-        #    This is suspicious because high confidence recommendations should be more stable
-        if stale_confidence == 'high' and stale_rec != current_rec:
-            logger.warning(f"Suspicious behavior detected: Changing high confidence recommendation from {stale_rec} to {current_rec}")
+        if stale_confidence == 'high' and stale_decision != current_decision:
+            logger.warning(f"Suspicious behavior detected: Changing high confidence decision from {stale_decision} to {current_decision}")
             return True
-        
-        # 2. If stale memory is bullish and current indicators are extremely bearish
-        #    but the model maintains the bullish recommendation
-        indicators = context.get('indicators', {})
-        if not indicators:
-            logger.warning("No indicators found in context")
-            return False
 
-        is_extremely_bearish = (
-            indicators.get('rsi', 50) < 30 or  # Oversold
-            (indicators.get('ema_50', 0) < indicators.get('ema_200', 0)) or  # Death cross
-            indicators.get('trend', '') == 'strong_downtrend'  # Strong downtrend
-        )
-        
-        if stale_rec == 'buy' and is_extremely_bearish and current_rec == 'buy':
-            logger.warning("Suspicious behavior detected: Bullish recommendation despite extremely bearish indicators")
+        context_suggestion = context.get('context_suggestion', '')
+        if context_suggestion and context_suggestion.lower() != current_decision:
+            logger.warning(f"Suspicious behavior detected: Response {current_decision} contradicts context suggestion {context_suggestion}")
+            return True
+
+        pattern_history = context.get('pattern_history', [])
+        if pattern_history and current_decision not in pattern_history:
+            logger.warning(f"Suspicious behavior detected: Response {current_decision} breaks from established pattern {pattern_history}")
             return True
 
         logger.info("No suspicious behavior detected")
@@ -107,41 +99,61 @@ def behavioral_contract(contract_spec: Dict[str, Any]):
         @wraps(func)
         def wrapper(*args, **kwargs) -> Dict[str, Any]:
             try:
-                # Parse and validate contract spec
                 spec = BehavioralContractSpec(**contract_spec)
                 required_fields = spec.response_contract.output_format.required_fields
                 validator = ResponseValidator(required_fields=required_fields)
                 validator.start_timer()
                 response = func(*args, **kwargs)
+                
+                policy = spec.policy.model_dump() if hasattr(spec.policy, 'model_dump') else (spec.policy.dict() if hasattr(spec.policy, 'dict') else dict(spec.policy))
+                behavioral_flags = spec.behavioral_flags.model_dump() if hasattr(spec.behavioral_flags, 'model_dump') else (spec.behavioral_flags.dict() if hasattr(spec.behavioral_flags, 'dict') else dict(spec.behavioral_flags))
+                response_contract = spec.response_contract.model_dump() if hasattr(spec.response_contract, 'model_dump') else (spec.response_contract.dict() if hasattr(spec.response_contract, 'dict') else dict(spec.response_contract))
                 is_valid, reason = validator.validate(
                     response,
-                    spec.policy,
-                    spec.behavioral_flags,
-                    spec.response_contract,
+                    policy,
+                    behavioral_flags,
+                    response_contract,
                     kwargs
                 )
                 if not is_valid:
                     logger.warning(f"Response validation failed: {reason}")
                     fallback = validator.get_fallback_response(reason)
-                    # If high confidence change, add flag for review
-                    if 'high confidence recommendation changed' in reason:
+                
+                    if 'high confidence decision changed' in reason:
                         fallback['flagged_for_review'] = True
                         fallback['strike_reason'] = 'Suspicious output based on stale context or mismatch'
-                    # If temperature_used was in the response, include it in fallback for test compatibility
+                
                     if 'temperature_used' in response:
                         fallback['temperature_used'] = response['temperature_used']
                     return fallback
+                
+                contract = BehavioralContract(contract_spec)
+                
+                context = kwargs.get('context')
+                if context is None:
+                
+                    context = {
+                        'memory': kwargs.get('memory', []),
+                        'indicators': kwargs.get('indicators', {})
+                    }
+                if contract.is_suspicious_behavior(response, context):
+                    response['flagged_for_review'] = True
+                    response['strike_reason'] = 'Suspicious output based on stale context or mismatch'
                 if validator.should_resubmit(response, kwargs.get('context')):
                     logger.info("Resubmitting with adjusted parameters")
                     return func(*args, **kwargs)
                 return response
             except Exception as e:
                 logger.error(f"Contract enforcement error: {str(e)}")
-                return {
-                    "recommendation": "unknown",
+                fallback = {
+                    "decision": "unknown",
                     "confidence": "low",
                     "summary": "An error occurred during contract enforcement.",
                     "reasoning": str(e)
                 }
+                
+                if 'response' in locals() and isinstance(response, dict) and 'temperature_used' in response:
+                    fallback['temperature_used'] = response['temperature_used']
+                return fallback
         return wrapper
     return decorator

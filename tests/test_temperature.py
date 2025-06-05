@@ -1,4 +1,3 @@
-import pytest
 from behavioral_contracts.temperature import TemperatureController
 
 def test_fixed_temperature():

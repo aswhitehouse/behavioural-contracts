@@ -1,4 +1,3 @@
-import pytest
 from behavioral_contracts import behavioral_contract, BehavioralContractViolation
 
 # Sample contract specification for testing
@@ -21,12 +20,12 @@ TEST_CONTRACT = {
     },
     "response_contract": {
         "output_format": {
-            "required_fields": ["recommendation", "confidence"],
+            "required_fields": ["decision", "confidence"],
             "on_failure": {
                 "action": "unknown",
                 "max_retries": 1,
                 "fallback": {
-                    "recommendation": "unknown",
+                    "decision": "unknown",
                     "confidence": "low",
                     "reason": "Fallback due to error"
                 }
@@ -51,42 +50,42 @@ def test_valid_response():
     @behavioral_contract(TEST_CONTRACT)
     def test_agent(signal: dict, **kwargs):
         return {
-            "recommendation": "BUY",
+            "decision": "BUY",
             "confidence": "high",
             "compliance_tags": ["test_tag"]
         }
     
     result = test_agent({"indicators": {"rsi": 50}})
-    assert result["recommendation"] == "BUY"
+    assert result["decision"] == "BUY"
     assert result["confidence"] == "high"
 
 def test_invalid_response_fallback():
     @behavioral_contract(TEST_CONTRACT)
     def test_agent(signal: dict, **kwargs):
         return {
-            "recommendation": "BUY"
+            "decision": "BUY"
             # Missing required field: confidence
         }
     
     result = test_agent({"indicators": {"rsi": 50}})
-    assert result["recommendation"] == "unknown"
+    assert result["decision"] == "unknown"
     assert result["confidence"] == "low"
 
 def test_suspicious_behavior_detection():
     @behavioral_contract(TEST_CONTRACT)
     def test_agent(signal: dict, **kwargs):
         return {
-            "recommendation": "BUY",
+            "decision": "BUY",
             "confidence": "high",
             "compliance_tags": ["test_tag"]
         }
     
-    # Simulate memory with previous high confidence recommendation
+    # Simulate memory with previous high confidence decision
     result = test_agent(
         {},
         memory=[{
             "analysis": {
-                "recommendation": "SELL",
+                "decision": "SELL",
                 "confidence": "high"
             }
         }],
@@ -104,7 +103,7 @@ def test_temperature_control():
     @behavioral_contract(TEST_CONTRACT)
     def test_agent(signal: dict, temperature: float = 0.3, **kwargs):
         return {
-            "recommendation": "BUY",
+            "decision": "BUY",
             "confidence": "high",
             "temperature_used": temperature,
             "compliance_tags": ["test_tag"]
@@ -120,5 +119,5 @@ def test_health_monitoring():
     
     # First failure should trigger retry
     result = test_agent({"indicators": {"rsi": 50}})
-    assert result["recommendation"] == "unknown"
+    assert result["decision"] == "unknown"
     assert result["confidence"] == "low" 

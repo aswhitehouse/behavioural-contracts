@@ -2,7 +2,7 @@ import json
 import logging
 import re
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from pydantic import BaseModel, Field
 from .models import Policy, BehavioralFlags, ResponseContract
 
@@ -18,7 +18,6 @@ def try_parse_json(raw_content: Any) -> Optional[Dict]:
 
     raw_content = raw_content.strip()
 
-    # Handle markdown code blocks
     if raw_content.startswith("```") and raw_content.endswith("```"):
         content_lines = raw_content.split("\n")
         if len(content_lines) > 2:
@@ -47,60 +46,63 @@ class ResponseValidator:
     def __init__(self, required_fields: List[str]):
         self.required_fields = required_fields
         self.pii_patterns = [
-            r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b',  # Email
-            r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b',  # Phone
-            r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'   # URL
+            r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b',
+            r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b',
+            r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
         ]
         self.start_time = None
 
-    def validate(self, response: Dict[str, Any], policy: Optional[Policy] = None, 
-                behavioral_flags: Optional[BehavioralFlags] = None,
-                response_contract: Optional[ResponseContract] = None,
-                context: Optional[Dict[str, Any]] = None) -> tuple[bool, str]:
-        """Validate the response against the contract requirements."""
-        try:
-            # Check required fields
-            if not self._validate_required_fields(response):
-                return False, "missing required fields"
+    def start_timer(self):
+        self.start_time = time.time()
 
-            # Check PII if policy is provided
-            if policy and not policy.PII:
-                if self._contains_pii(response):
-                    return False, "PII detected in response"
+    def validate(self, response: Dict[str, Any], policy: Dict[str, Any], behavioral_flags: Dict[str, Any], response_contract: Dict[str, Any], context: Dict[str, Any] = None) -> Tuple[bool, str]:
 
-            # Check compliance tags if policy is provided
-            if policy and not self._validate_compliance_tags(response, policy.compliance_tags):
-                return False, "missing required compliance tags"
+        for field in self.required_fields:
+            if field not in response:
+                return False, 'missing required fields'
 
-            # Check allowed tools if policy is provided
-            if policy and not self._validate_allowed_tools(response, policy.allowed_tools):
-                return False, "unauthorized tools used"
+        if not policy.get('PII', False):
+            if self._contains_pii(response):
+                return False, 'pii detected in response'
 
-            # Check temperature if behavioral flags are provided
-            if behavioral_flags and hasattr(behavioral_flags, 'temperature_control') and 'temperature_used' in response:
-                tc = behavioral_flags.temperature_control
-                if not self._validate_temperature(response['temperature_used'], tc):
-                    return False, "temperature outside allowed range"
+        if 'compliance_tags' in policy:
+            if 'compliance_tags' not in response:
+                return False, 'missing compliance tags'
 
-            # Check response time
-            if self.start_time and response_contract and hasattr(response_contract, 'max_response_time_ms'):
-                response_time = (time.time() - self.start_time) * 1000
-                if response_time > response_contract.max_response_time_ms:
-                    return False, "timeout: response time exceeded limit"
+        if 'allowed_tools' in policy:
+            if 'tools' in response:
+                for tool in response['tools']:
+                    if tool not in policy['allowed_tools']:
+                        return False, 'unauthorized tool used'
 
-            # High confidence change detection
-            if context and self._high_confidence_change(response, context):
-                return False, "high confidence recommendation changed"
+        if 'previous_decision' in response:
+            if response['previous_decision'] != response['decision']:
+                return False, 'high confidence decision changed'
 
-            return True, ""
+        if 'temperature_used' in response:
+            if not (behavioral_flags['temperature_control']['range'][0] <= response['temperature_used'] <= behavioral_flags['temperature_control']['range'][1]):
+                return False, 'temperature out of range'
 
-        except Exception as e:
-            logger.error(f"Validation error: {str(e)}")
-            return False, str(e)
+        if self.start_time:
+            response_time = (time.time() - self.start_time) * 1000
+            if response_time > response_contract.get('max_response_time_ms', 5000):
+                return False, 'response time exceeded'
 
-    def _validate_required_fields(self, response: Dict[str, Any]) -> bool:
-        """Check if all required fields are present."""
-        return all(field in response for field in self.required_fields)
+        return True, ''
+
+    def get_fallback_response(self, reason: str) -> Dict[str, Any]:
+        fallback = {
+            "decision": "unknown",
+            "confidence": "low",
+            "summary": "Fallback due to error",
+            "reasoning": reason
+        }
+        if 'high confidence decision changed' in reason:
+            fallback['flagged_for_review'] = True
+        return fallback
+
+    def should_resubmit(self, response: Dict[str, Any], context: Dict[str, Any] = None) -> bool:
+        return False
 
     def _contains_pii(self, response: Dict[str, Any]) -> bool:
         """Check if response contains any PII."""
@@ -125,45 +127,16 @@ class ResponseValidator:
         max_temp = getattr(control, 'max', 0.6)
         return min_temp <= temperature <= max_temp
 
-    def should_resubmit(self, response: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> bool:
-        """Determine if the response should be resubmitted."""
-        if not context:
-            return False
-
-        # Check for high confidence changes
-        if 'previous_recommendation' in response:
-            current_rec = response.get('recommendation', '').lower()
-            prev_rec = response['previous_recommendation'].lower()
-            if current_rec != prev_rec and response.get('confidence', '').lower() == 'high':
-                logger.warning("High confidence recommendation changed")
-                return True
-
-        return False
-
-    def get_fallback_response(self, reason: str) -> Dict[str, Any]:
-        """Get the appropriate fallback response."""
-        return {
-            "recommendation": "unknown",
-            "confidence": "low",
-            "summary": "Recommendation rejected due to validation failure.",
-            "reasoning": f"The model's recommendation was rejected because {reason}."
-        }
-
-    def start_timer(self):
-        """Start the response time timer."""
-        self.start_time = time.time()
-
     def _high_confidence_change(self, response: Dict[str, Any], context: Dict[str, Any]) -> bool:
-        # Simulate memory with previous high confidence recommendation
         memory = context.get('memory', [])
         if not memory:
             return False
         latest_memory = memory[0].get('analysis', {})
-        prev_rec = latest_memory.get('recommendation', '').lower()
+        prev_decision = latest_memory.get('decision', '').lower()
         prev_conf = latest_memory.get('confidence', '').lower()
-        current_rec = response.get('recommendation', '').lower()
+        current_decision = response.get('decision', '').lower()
         current_conf = response.get('confidence', '').lower()
-        if prev_conf == 'high' and prev_rec and current_rec and prev_rec != current_rec and current_conf == 'high':
+        if prev_conf == 'high' and prev_decision and current_decision and prev_decision != current_decision and current_conf == 'high':
             return True
         return False
 
