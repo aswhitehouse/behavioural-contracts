@@ -32,7 +32,11 @@ TEST_CONTRACT = {
             },
             "max_response_time_ms": 1000
         },
-        "max_response_time_ms": 1000
+        "max_response_time_ms": 1000,
+        "behavior_signature": {
+            "key": "decision",
+            "expected_type": "string"
+        }
     },
     "health": {
         "strikes": 0,
@@ -120,4 +124,36 @@ def test_health_monitoring():
     # First failure should trigger retry
     result = test_agent({"indicators": {"rsi": 50}})
     assert result["decision"] == "unknown"
-    assert result["confidence"] == "low" 
+    assert result["confidence"] == "low"
+
+def test_behavior_signature():
+    # Create a contract that tracks 'goal' instead of 'decision'
+    goal_contract = TEST_CONTRACT.copy()
+    goal_contract["response_contract"]["behavior_signature"] = {
+        "key": "goal",
+        "expected_type": "string"
+    }
+    goal_contract["response_contract"]["output_format"]["required_fields"] = ["goal", "confidence"]
+
+    @behavioral_contract(goal_contract)
+    def test_agent(signal: dict, **kwargs):
+        return {
+            "goal": "APPROVE",
+            "confidence": "high",
+            "compliance_tags": ["test_tag"]
+        }
+    
+    # Test high confidence change with goal instead of decision
+    result = test_agent(
+        {},
+        context={
+            "memory": [{
+                "analysis": {
+                    "goal": "REJECT",
+                    "confidence": "high"
+                }
+            }]
+        }
+    )
+    assert result["flagged_for_review"] is True
+    assert "strike_reason" in result 

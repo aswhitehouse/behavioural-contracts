@@ -38,7 +38,11 @@ ANALYST_CONTRACT = {
                 }
             }
         },
-        "max_response_time_ms": 4000
+        "max_response_time_ms": 4000,
+        "behavior_signature": {
+            "key": "decision",
+            "expected_type": "string"
+        }
     },
 
     "health": {

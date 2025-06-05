@@ -28,8 +28,12 @@ class BehavioralContract:
     def is_suspicious_behavior(self, response: dict, context: dict = None) -> bool:
         """Detect suspicious behavior by comparing response with context.
         
+        The behavior signature allows tracking any field as the behavior anchor.
+        For example, if behavior_signature = {"key": "goal"}, then changes in the
+        "goal" field will be tracked instead of "decision".
+        
         General patterns that might indicate suspicious behavior:
-        1. High confidence changes - if a system was very confident about a decision
+        1. High confidence changes - if a system was very confident about a behavior
            and suddenly changes it, this might be suspicious
         2. Context mismatch - if the current context suggests one thing but the
            response suggests another, this might be suspicious
@@ -40,9 +44,20 @@ class BehavioralContract:
             logger.warning("No context or memory provided for suspicious behavior check")
             return False
 
-        current_decision = response.get('decision', '').lower()
-        if not current_decision:
-            logger.warning("No decision in current response")
+        # Get the behavior key from signature or default to "decision"
+        behavior_key = (
+            self.spec.response_contract.behavior_signature.get("key", "decision")
+            if self.spec.response_contract.behavior_signature
+            else "decision"
+        )
+
+        if not self.spec.response_contract.behavior_signature:
+            logger.warning("No behavior signature defined - skipping behavior tracking")
+            return False
+
+        current_behavior = response.get(behavior_key, '').lower()
+        if not current_behavior:
+            logger.warning(f"No {behavior_key} in current response")
             return False
 
         stale_memory = context.get('memory', [])
@@ -51,26 +66,29 @@ class BehavioralContract:
             return False
 
         latest_memory = stale_memory[0].get('analysis', {})
-        stale_decision = latest_memory.get('decision', '').lower()
+        stale_behavior = latest_memory.get(behavior_key, '').lower()
         stale_confidence = latest_memory.get('confidence', '').lower()
-        if not stale_decision:
-            logger.warning("No decision in stale memory")
+        if not stale_behavior:
+            logger.warning(f"No {behavior_key} in stale memory")
             return False
 
-        logger.info(f"Comparing decisions - Stale: {stale_decision} ({stale_confidence}), Current: {current_decision}")
+        logger.info(f"Comparing {behavior_key}s - Stale: {stale_behavior} ({stale_confidence}), Current: {current_behavior}")
 
-        if stale_confidence == 'high' and stale_decision != current_decision:
-            logger.warning(f"Suspicious behavior detected: Changing high confidence decision from {stale_decision} to {current_decision}")
+        # Pattern 1: High confidence changes
+        if stale_confidence == 'high' and stale_behavior != current_behavior:
+            logger.warning(f"Suspicious behavior detected: Changing high confidence {behavior_key} from {stale_behavior} to {current_behavior}")
             return True
 
+        # Pattern 2: Context mismatch
         context_suggestion = context.get('context_suggestion', '')
-        if context_suggestion and context_suggestion.lower() != current_decision:
-            logger.warning(f"Suspicious behavior detected: Response {current_decision} contradicts context suggestion {context_suggestion}")
+        if context_suggestion and context_suggestion.lower() != current_behavior:
+            logger.warning(f"Suspicious behavior detected: Response {current_behavior} contradicts context suggestion {context_suggestion}")
             return True
 
+        # Pattern 3: Pattern breaks
         pattern_history = context.get('pattern_history', [])
-        if pattern_history and current_decision not in pattern_history:
-            logger.warning(f"Suspicious behavior detected: Response {current_decision} breaks from established pattern {pattern_history}")
+        if pattern_history and current_behavior not in pattern_history:
+            logger.warning(f"Suspicious behavior detected: Response {current_behavior} breaks from established pattern {pattern_history}")
             return True
 
         logger.info("No suspicious behavior detected")

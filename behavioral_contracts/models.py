@@ -25,7 +25,11 @@ class OutputFormat(BaseModel):
 
 class ResponseContract(BaseModel):
     output_format: OutputFormat
-    max_response_time_ms: int = Field(..., description="Maximum response time in milliseconds")
+    max_response_time_ms: int = 5000
+    behavior_signature: Optional[Dict[str, str]] = Field(
+        default=None,
+        description="Optional configuration for behavior tracking. Format: {'key': 'field_name', 'expected_type': 'string'}"
+    )
 
 class Policy(BaseModel):
     PII: bool = Field(..., description="Whether PII is allowed")
