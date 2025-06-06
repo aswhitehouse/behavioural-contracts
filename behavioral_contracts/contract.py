@@ -44,7 +44,6 @@ class BehavioralContract:
             logger.warning("No context or memory provided for suspicious behavior check")
             return False
 
-        # Get the behavior key from signature or default to "decision"
         behavior_key = (
             self.spec.response_contract.behavior_signature.get("key", "decision")
             if self.spec.response_contract.behavior_signature
@@ -74,18 +73,15 @@ class BehavioralContract:
 
         logger.info(f"Comparing {behavior_key}s - Stale: {stale_behavior} ({stale_confidence}), Current: {current_behavior}")
 
-        # Pattern 1: High confidence changes
         if stale_confidence == 'high' and stale_behavior != current_behavior:
             logger.warning(f"Suspicious behavior detected: Changing high confidence {behavior_key} from {stale_behavior} to {current_behavior}")
             return True
 
-        # Pattern 2: Context mismatch
         context_suggestion = context.get('context_suggestion', '')
         if context_suggestion and context_suggestion.lower() != current_behavior:
             logger.warning(f"Suspicious behavior detected: Response {current_behavior} contradicts context suggestion {context_suggestion}")
             return True
 
-        # Pattern 3: Pattern breaks
         pattern_history = context.get('pattern_history', [])
         if pattern_history and current_behavior not in pattern_history:
             logger.warning(f"Suspicious behavior detected: Response {current_behavior} breaks from established pattern {pattern_history}")
