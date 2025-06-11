@@ -1,4 +1,4 @@
-from behavioral_contracts import behavioral_contract, BehavioralContractViolation
+from behavioural_contracts import behavioural_contract, BehaviouralContractViolation
 
 # Sample contract specification for testing
 TEST_CONTRACT = {
@@ -6,11 +6,11 @@ TEST_CONTRACT = {
     "description": "Test contract",
     "role": "test_agent",
     "policy": {
-        "PII": False,
+        "pii": False,
         "compliance_tags": ["test_tag"],
         "allowed_tools": ["test_tool"]
     },
-    "behavioral_flags": {
+    "behavioural_flags": {
         "temperature_control": {
             "mode": "fixed",
             "range": [0.2, 0.6]
@@ -22,7 +22,7 @@ TEST_CONTRACT = {
         "output_format": {
             "required_fields": ["decision", "confidence"],
             "on_failure": {
-                "action": "unknown",
+                "action": "fallback",
                 "max_retries": 1,
                 "fallback": {
                     "decision": "unknown",
@@ -33,7 +33,7 @@ TEST_CONTRACT = {
             "max_response_time_ms": 1000
         },
         "max_response_time_ms": 1000,
-        "behavior_signature": {
+        "behaviour_signature": {
             "key": "decision",
             "expected_type": "string"
         }
@@ -51,7 +51,7 @@ TEST_CONTRACT = {
 }
 
 def test_valid_response():
-    @behavioral_contract(TEST_CONTRACT)
+    @behavioural_contract(TEST_CONTRACT)
     def test_agent(signal: dict, **kwargs):
         return {
             "decision": "BUY",
@@ -64,7 +64,7 @@ def test_valid_response():
     assert result["confidence"] == "high"
 
 def test_invalid_response_fallback():
-    @behavioral_contract(TEST_CONTRACT)
+    @behavioural_contract(TEST_CONTRACT)
     def test_agent(signal: dict, **kwargs):
         return {
             "decision": "BUY"
@@ -76,7 +76,7 @@ def test_invalid_response_fallback():
     assert result["confidence"] == "low"
 
 def test_suspicious_behavior_detection():
-    @behavioral_contract(TEST_CONTRACT)
+    @behavioural_contract(TEST_CONTRACT)
     def test_agent(signal: dict, **kwargs):
         return {
             "decision": "BUY",
@@ -84,27 +84,21 @@ def test_suspicious_behavior_detection():
             "compliance_tags": ["test_tag"]
         }
     
-    # Simulate memory with previous high confidence decision
+    # Test with memory containing previous high confidence decision
     result = test_agent(
-        {},
+        {"indicators": {"rsi": 50}},
         memory=[{
             "analysis": {
                 "decision": "SELL",
                 "confidence": "high"
             }
-        }],
-        indicators={
-            "rsi": 20,
-            "ema_50": 100,
-            "ema_200": 200,
-            "trend": "strong_downtrend"
-        }
+        }]
     )
     assert result["flagged_for_review"] is True
     assert "strike_reason" in result
 
 def test_temperature_control():
-    @behavioral_contract(TEST_CONTRACT)
+    @behavioural_contract(TEST_CONTRACT)
     def test_agent(signal: dict, temperature: float = 0.3, **kwargs):
         return {
             "decision": "BUY",
@@ -117,11 +111,10 @@ def test_temperature_control():
     assert 0.2 <= result["temperature_used"] <= 0.6
 
 def test_health_monitoring():
-    @behavioral_contract(TEST_CONTRACT)
+    @behavioural_contract(TEST_CONTRACT)
     def test_agent(signal: dict, **kwargs):
         raise Exception("Test error")
     
-    # First failure should trigger retry
     result = test_agent({"indicators": {"rsi": 50}})
     assert result["decision"] == "unknown"
     assert result["confidence"] == "low"
@@ -129,13 +122,13 @@ def test_health_monitoring():
 def test_behavior_signature():
     # Create a contract that tracks 'goal' instead of 'decision'
     goal_contract = TEST_CONTRACT.copy()
-    goal_contract["response_contract"]["behavior_signature"] = {
+    goal_contract["response_contract"]["behaviour_signature"] = {
         "key": "goal",
         "expected_type": "string"
     }
     goal_contract["response_contract"]["output_format"]["required_fields"] = ["goal", "confidence"]
 
-    @behavioral_contract(goal_contract)
+    @behavioural_contract(goal_contract)
     def test_agent(signal: dict, **kwargs):
         return {
             "goal": "APPROVE",
@@ -145,15 +138,13 @@ def test_behavior_signature():
     
     # Test high confidence change with goal instead of decision
     result = test_agent(
-        {},
-        context={
-            "memory": [{
-                "analysis": {
-                    "goal": "REJECT",
-                    "confidence": "high"
-                }
-            }]
-        }
+        {"indicators": {"rsi": 50}},
+        memory=[{
+            "analysis": {
+                "goal": "REJECT",
+                "confidence": "high"
+            }
+        }]
     )
     assert result["flagged_for_review"] is True
     assert "strike_reason" in result 

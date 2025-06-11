@@ -1,4 +1,4 @@
-from behavioral_contracts.temperature import TemperatureController
+from behavioural_contracts.temperature import TemperatureController
 
 def test_fixed_temperature():
     controller = TemperatureController("fixed", [0.2, 0.6])

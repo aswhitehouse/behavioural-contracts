@@ -1,17 +1,17 @@
-# Behavioral Contracts
+# Behavioural Contracts
 
-A Python package for enforcing behavioral contracts in AI agents. This package provides a framework for defining, validating, and enforcing behavioral contracts that ensure AI agents operate within specified constraints and patterns.
+A Python package for enforcing behavioural contracts in AI agents. This package provides a framework for defining, validating, and enforcing behavioural contracts that ensure AI agents operate within specified constraints and patterns.
 
 ## Installation
 
 ```bash
-pip install behavioral-contracts
+pip install behavioural-contracts
 ```
 
 ## Quick Start
 
 ```python
-from behavioral_contracts import behavioral_contract, generate_contract
+from behavioural_contracts import behavioural_contract, generate_contract
 
 # Define your contract
 contract_data = {
@@ -30,7 +30,7 @@ contract_data = {
         "compliance_tags": ["EU-AI-ACT"],
         "allowed_tools": ["search", "summary"]
     },
-    "behavioral_flags": {
+    "behavioural_flags": {
         "conservatism": "moderate",
         "verbosity": "compact",
         "temperature_control": {
@@ -44,7 +44,7 @@ contract_data = {
 contract = generate_contract(contract_data)
 
 # Use the contract with your agent
-@behavioral_contract(contract)
+@behavioural_contract(contract)
 def analyst_agent(signal: dict, **kwargs):
     return {
         "decision": "BUY",
@@ -62,7 +62,7 @@ def analyst_agent(signal: dict, **kwargs):
 Generate properly formatted contracts from specification data:
 
 ```python
-from behavioral_contracts import generate_contract
+from behavioural_contracts import generate_contract
 
 # Basic contract
 basic_contract = generate_contract({
@@ -102,7 +102,7 @@ policy_contract = generate_contract({
 Format existing contracts to ensure proper value types:
 
 ```python
-from behavioral_contracts import format_contract
+from behavioural_contracts import format_contract
 
 # Format a contract with mixed types
 formatted = format_contract({
@@ -115,15 +115,15 @@ formatted = format_contract({
 })
 ```
 
-### 3. Behavioral Contract Decorator
+### 3. Behavioural Contract Decorator
 
 Use the decorator to enforce contracts on your agent functions:
 
 ```python
-from behavioral_contracts import behavioral_contract
+from behavioural_contracts import behavioural_contract
 
 # Using a dictionary
-@behavioral_contract({
+@behavioural_contract({
     "version": "1.1",
     "description": "Trading Agent",
     "role": "trader",
@@ -146,7 +146,7 @@ contract = generate_contract({
     "role": "analyst"
 })
 
-@behavioral_contract(contract)
+@behavioural_contract(contract)
 def analysis_agent(signal: dict, **kwargs):
     return {
         "decision": "ANALYZE",
@@ -156,10 +156,10 @@ def analysis_agent(signal: dict, **kwargs):
 
 ### 4. Memory and Context Handling
 
-The contract system handles memory and context for suspicious behavior detection:
+The contract system handles memory and context for suspicious behaviour detection:
 
 ```python
-@behavioral_contract({
+@behavioural_contract({
     "version": "1.1",
     "description": "Context-Aware Agent",
     "role": "agent",
@@ -169,7 +169,7 @@ The contract system handles memory and context for suspicious behavior detection
     }
 })
 def context_agent(signal: dict, **kwargs):
-    # The contract will automatically check for suspicious behavior
+    # The contract will automatically check for suspicious behaviour
     # based on the provided context and memory
     return {
         "decision": "APPROVE",
@@ -193,7 +193,7 @@ result = context_agent(
 
 ## Contract Structure
 
-A behavioral contract consists of several key sections:
+A behavioural contract consists of several key sections:
 
 1. **Basic Information**
    - `version`: Contract version
@@ -212,7 +212,7 @@ A behavioral contract consists of several key sections:
    - `compliance_tags`: Required compliance tags
    - `allowed_tools`: List of allowed tools
 
-4. **Behavioral Flags**
+4. **Behavioural Flags**
    - `conservatism`: Agent conservatism level
    - `verbosity`: Output verbosity
    - `temperature_control`: Temperature settings

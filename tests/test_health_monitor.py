@@ -1,5 +1,5 @@
 import time
-from behavioral_contracts.health_monitor import HealthMonitor
+from behavioural_contracts.health_monitor import HealthMonitor
 
 def test_initial_health():
     monitor = HealthMonitor()

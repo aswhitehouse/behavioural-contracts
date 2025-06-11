@@ -1,11 +1,11 @@
-from behavioral_contracts import behavioral_contract
+from behavioural_contracts import behavioural_contract
 
 # Define a simple contract for a trading bot
 TRADING_CONTRACT = {
     "version": "1.0",
     "description": "Trading bot contract",
     "role": "trading_agent",
-    "behavioral_flags": {
+    "behavioural_flags": {
         "temperature_control": {
             "mode": "fixed",
             "range": [0.2, 0.6]
@@ -35,7 +35,7 @@ TRADING_CONTRACT = {
     }
 }
 
-@behavioral_contract(TRADING_CONTRACT)
+@behavioural_contract(TRADING_CONTRACT)
 def trading_bot(market_data: dict, **kwargs):
     # Simulate a trading bot that analyzes market data
     rsi = market_data.get("rsi", 50)
@@ -72,7 +72,7 @@ if __name__ == "__main__":
     print(result2)
     
     # Test case 3: Invalid response (missing required field)
-    @behavioral_contract(TRADING_CONTRACT)
+    @behavioural_contract(TRADING_CONTRACT)
     def invalid_bot(market_data: dict, **kwargs):
         return {"action": "BUY"}  # Missing required fields
     
@@ -91,7 +91,7 @@ if __name__ == "__main__":
                 }
             }
         }
-        @behavioral_contract(invalid_contract)
+        @behavioural_contract(invalid_contract)
         def test_invalid_contract(market_data: dict, **kwargs):
             return {"action": "BUY", "confidence": "high", "reason": "test"}
     except Exception as e:

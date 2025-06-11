@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime, timedelta
+from typing import Dict, Any, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -12,6 +13,8 @@ class HealthMonitor:
         self.status = "healthy"
         self.unusual_behavior_count = 0
         self.last_unusual_behavior = None
+        self.last_check = datetime.now()
+        self.violations = []
         logger.info(f"HealthMonitor initialized with max_strikes={self.max_strikes}, window={self.strike_window_seconds}s")
 
     def add_strike(self, reason: str = None):
@@ -48,9 +51,10 @@ class HealthMonitor:
         self.status = "healthy"
         self.last_reset = datetime.now()
         self.last_unusual_behavior = None
+        self.violations = []
         logger.info("Health monitor reset - agent is healthy")
 
-    def get_health_status(self) -> dict:
+    def get_health_status(self) -> Dict[str, Any]:
         """Get detailed health status information."""
         return {
             "status": self.status,
@@ -58,5 +62,41 @@ class HealthMonitor:
             "max_strikes": self.max_strikes,
             "unusual_behavior_count": self.unusual_behavior_count,
             "last_unusual_behavior": self.last_unusual_behavior,
-            "last_reset": self.last_reset.isoformat()
+            "last_reset": self.last_reset.isoformat(),
+            "last_check": self.last_check.isoformat(),
+            "violations": self.violations
+        }
+
+    def record_violation(self, violation: str) -> None:
+        """Record a contract violation.
+        
+        Args:
+            violation: Description of the violation
+        """
+        self.strikes += 1
+        self.violations.append({
+            "timestamp": datetime.now(),
+            "description": violation
+        })
+        
+        if self.strikes >= 3:
+            self.status = "unhealthy"
+            
+    def reset(self) -> None:
+        """Reset the health monitor."""
+        self.strikes = 0
+        self.status = "healthy"
+        self.violations = []
+        
+    def get_health_status(self) -> Dict[str, Any]:
+        """Get the current health status.
+        
+        Returns:
+            Dict containing health status information
+        """
+        return {
+            "strikes": self.strikes,
+            "status": self.status,
+            "last_check": self.last_check.isoformat(),
+            "violations": self.violations
         }

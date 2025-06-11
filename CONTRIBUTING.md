@@ -1,4 +1,4 @@
-# Contributing to behavioral_contracts
+# Contributing to behavioural_contracts
 
 Thank you for your interest in contributing!
 

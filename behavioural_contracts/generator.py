@@ -2,7 +2,7 @@ import json
 from typing import Dict, Any, Union
 
 def generate_contract(spec_data: Dict[str, Any]) -> str:
-    """Generate a properly formatted behavioral contract from spec data.
+    """Generate a properly formatted behavioural contract from spec data.
     
     Args:
         spec_data: Dictionary containing contract configuration
@@ -27,7 +27,7 @@ def generate_contract(spec_data: Dict[str, Any]) -> str:
             "compliance_tags": ["EU-AI-ACT"],
             "allowed_tools": ["search", "summary"]
         },
-        "behavioral_flags": {
+        "behavioural_flags": {
             "conservatism": "moderate",
             "verbosity": "compact",
             "temperature_control": {
@@ -59,14 +59,14 @@ def generate_contract(spec_data: Dict[str, Any]) -> str:
             "allowed_tools": [str(tool) for tool in spec_data["policy"].get("allowed_tools", [])]
         }
     
-    # Add behavioral flags if present
-    if "behavioral_flags" in spec_data:
-        formatted["behavioral_flags"] = {
-            "conservatism": str(spec_data["behavioral_flags"].get("conservatism", "moderate")),
-            "verbosity": str(spec_data["behavioral_flags"].get("verbosity", "compact")),
+    # Add behavioural flags if present
+    if "behavioural_flags" in spec_data:
+        formatted["behavioural_flags"] = {
+            "conservatism": str(spec_data["behavioural_flags"].get("conservatism", "moderate")),
+            "verbosity": str(spec_data["behavioural_flags"].get("verbosity", "compact")),
             "temperature_control": {
-                "mode": str(spec_data["behavioral_flags"]["temperature_control"].get("mode", "adaptive")),
-                "range": [float(x) for x in spec_data["behavioral_flags"]["temperature_control"].get("range", [0.2, 0.6])]
+                "mode": str(spec_data["behavioural_flags"]["temperature_control"].get("mode", "adaptive")),
+                "range": [float(x) for x in spec_data["behavioural_flags"]["temperature_control"].get("range", [0.2, 0.6])]
             }
         }
     

@@ -32,11 +32,11 @@ class ResponseContract(BaseModel):
     )
 
 class Policy(BaseModel):
-    PII: bool = Field(..., description="Whether PII is allowed")
+    pii: bool = Field(..., description="Whether PII is allowed")
     compliance_tags: List[str] = Field(..., description="Required compliance tags")
     allowed_tools: List[str] = Field(..., description="List of allowed tools")
 
-class BehavioralFlags(BaseModel):
+class BehaviouralFlags(BaseModel):
     conservatism: str = Field(..., description="Level of conservatism (low/moderate/high)")
     verbosity: str = Field(..., description="Level of verbosity (compact/verbose)")
     temperature_control: TemperatureControl
@@ -50,12 +50,12 @@ class Escalation(BaseModel):
     on_context_mismatch: str = Field(..., description="Action on context mismatch")
     fallback_role: str = Field(..., description="Fallback role to use")
 
-class BehavioralContractSpec(BaseModel):
+class BehaviouralContractSpec(BaseModel):
     version: str
     description: str
     role: str
     policy: Policy
-    behavioral_flags: BehavioralFlags
+    behavioural_flags: BehaviouralFlags
     response_contract: ResponseContract
     health: Health
     escalation: Escalation 

@@ -1,3 +1,3 @@
 """
-Test suite for behavioral_contracts package.
+Test suite for behavioural_contracts package.
 """ 
