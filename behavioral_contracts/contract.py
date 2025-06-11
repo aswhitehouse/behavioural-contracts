@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Dict, Callable, Any
+from typing import Dict, Callable, Any, Union
 from datetime import datetime
 from functools import wraps
 
@@ -8,6 +8,7 @@ from .health_monitor import HealthMonitor
 from .temperature import TemperatureController
 from .validator import ResponseValidator
 from .models import BehavioralContractSpec
+from .generator import format_contract
 
 logger = logging.getLogger(__name__)
 
@@ -107,13 +108,23 @@ class BehavioralContract:
             "action": escalation_action
         })
 
-def behavioral_contract(contract_spec: Dict[str, Any]):
-    """Decorator to enforce behavioral contracts on functions."""
+def behavioral_contract(contract_data: Union[str, Dict[str, Any]]):
+    """Decorator for enforcing behavioral contracts.
+    
+    Args:
+        contract_data: Either a JSON string or dictionary containing the contract
+    """
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         def wrapper(*args, **kwargs) -> Dict[str, Any]:
             try:
-                spec = BehavioralContractSpec(**contract_spec)
+                # Convert dict to string if needed
+                if isinstance(contract_data, dict):
+                    contract_str = format_contract(contract_data)
+                else:
+                    contract_str = contract_data
+                    
+                spec = BehavioralContractSpec(**json.loads(contract_str))
                 required_fields = spec.response_contract.output_format.required_fields
                 validator = ResponseValidator(required_fields=required_fields)
                 validator.start_timer()
@@ -141,11 +152,10 @@ def behavioral_contract(contract_spec: Dict[str, Any]):
                         fallback['temperature_used'] = response['temperature_used']
                     return fallback
                 
-                contract = BehavioralContract(contract_spec)
+                contract = BehavioralContract(json.loads(contract_str))
                 
                 context = kwargs.get('context')
                 if context is None:
-                
                     context = {
                         'memory': kwargs.get('memory', []),
                         'indicators': kwargs.get('indicators', {})

@@ -1,6 +1,6 @@
 # Behavioral Contracts
 
-A Python package for enforcing behavioral contracts in AI agents. This package provides a decorator-based approach to ensure AI agents adhere to specified behavioral constraints, response formats, and performance requirements.
+A Python package for enforcing behavioral contracts in AI agents. This package provides a framework for defining, validating, and enforcing behavioral contracts that ensure AI agents operate within specified constraints and patterns.
 
 ## Installation
 
@@ -11,80 +11,216 @@ pip install behavioral-contracts
 ## Quick Start
 
 ```python
-from behavioral_contracts import behavioral_contract
+from behavioral_contracts import behavioral_contract, generate_contract
 
-# Define your contract specification
-contract_spec = {
-    "version": "1.0",
-    "description": "Trading agent behavioral contract",
-    "role": "trading_advisor",
+# Define your contract
+contract_data = {
+    "version": "1.1",
+    "description": "Financial Analyst Agent",
+    "role": "analyst",
+    "memory": {
+        "enabled": True,
+        "format": "string",
+        "usage": "prompt-append",
+        "required": True,
+        "description": "Market analysis context"
+    },
+    "policy": {
+        "pii": False,
+        "compliance_tags": ["EU-AI-ACT"],
+        "allowed_tools": ["search", "summary"]
+    },
     "behavioral_flags": {
+        "conservatism": "moderate",
+        "verbosity": "compact",
         "temperature_control": {
             "mode": "adaptive",
             "range": [0.2, 0.6]
         }
-    },
-    "response_contract": {
-        "output_format": {
-            "required_fields": ["recommendation", "confidence", "reasoning"],
-            "on_failure": {
-                "max_retries": 2,
-                "fallback": {
-                    "recommendation": "HOLD",
-                    "confidence": "low",
-                    "reasoning": "Unable to provide recommendation"
-                }
-            },
-            "max_response_time_ms": 5000
-        }
-    },
-    "health": {
-        "max_strikes": 3,
-        "strike_window_seconds": 3600
-    },
-    "escalation": {
-        "on_unexpected_output": "flag_for_review",
-        "on_invalid_response": "fallback"
     }
 }
 
-# Use the decorator on your AI agent function
-@behavioral_contract(contract_spec)
-def trading_advisor(signal: dict, temperature: float = 0.7):
-    # Your AI agent logic here
+# Generate a formatted contract
+contract = generate_contract(contract_data)
+
+# Use the contract with your agent
+@behavioral_contract(contract)
+def analyst_agent(signal: dict, **kwargs):
     return {
-        "recommendation": "BUY",
+        "decision": "BUY",
         "confidence": "high",
-        "reasoning": "Strong bullish indicators"
+        "summary": "Strong buy signal based on technical indicators",
+        "reasoning": "Multiple indicators show bullish momentum",
+        "compliance_tags": ["EU-AI-ACT"]
     }
 ```
 
-## Features
+## Key Features
 
-- **Behavioral Contract Enforcement**: Ensure AI agents adhere to specified behavioral constraints
-- **Response Format Validation**: Validate response formats against required schemas
-- **Temperature Control**: Adaptive or fixed temperature control for model outputs
-- **Health Monitoring**: Track agent health and performance
-- **Escalation Handling**: Define escalation paths for contract violations
-- **Suspicious Behavior Detection**: Detect and flag suspicious changes in agent behavior
+### 1. Contract Generation
 
-## Development
+Generate properly formatted contracts from specification data:
 
-```bash
-# Install development dependencies
-pip install -e ".[dev]"
+```python
+from behavioral_contracts import generate_contract
 
-# Run tests
-pytest
+# Basic contract
+basic_contract = generate_contract({
+    "version": "1.1",
+    "description": "Simple Agent",
+    "role": "agent"
+})
 
-# Run type checking
-mypy behavioral_contracts
+# Contract with memory settings
+memory_contract = generate_contract({
+    "version": "1.1",
+    "description": "Memory-Enabled Agent",
+    "role": "agent",
+    "memory": {
+        "enabled": True,
+        "format": "string",
+        "usage": "prompt-append",
+        "required": True
+    }
+})
 
-# Format code
-black behavioral_contracts
-isort behavioral_contracts
+# Contract with policy
+policy_contract = generate_contract({
+    "version": "1.1",
+    "description": "Compliant Agent",
+    "role": "agent",
+    "policy": {
+        "pii": False,
+        "compliance_tags": ["GDPR", "HIPAA"],
+        "allowed_tools": ["search", "analyze"]
+    }
+})
 ```
+
+### 2. Contract Formatting
+
+Format existing contracts to ensure proper value types:
+
+```python
+from behavioral_contracts import format_contract
+
+# Format a contract with mixed types
+formatted = format_contract({
+    "version": 1.1,  # Will be converted to string
+    "description": "My Agent",
+    "memory": {
+        "enabled": True,  # Will be converted to "true"
+        "required": 1  # Will be converted to "true"
+    }
+})
+```
+
+### 3. Behavioral Contract Decorator
+
+Use the decorator to enforce contracts on your agent functions:
+
+```python
+from behavioral_contracts import behavioral_contract
+
+# Using a dictionary
+@behavioral_contract({
+    "version": "1.1",
+    "description": "Trading Agent",
+    "role": "trader",
+    "policy": {
+        "pii": False,
+        "compliance_tags": ["FINRA"]
+    }
+})
+def trading_agent(signal: dict, **kwargs):
+    return {
+        "decision": "BUY",
+        "confidence": "high",
+        "compliance_tags": ["FINRA"]
+    }
+
+# Using a generated contract
+contract = generate_contract({
+    "version": "1.1",
+    "description": "Analysis Agent",
+    "role": "analyst"
+})
+
+@behavioral_contract(contract)
+def analysis_agent(signal: dict, **kwargs):
+    return {
+        "decision": "ANALYZE",
+        "confidence": "high"
+    }
+```
+
+### 4. Memory and Context Handling
+
+The contract system handles memory and context for suspicious behavior detection:
+
+```python
+@behavioral_contract({
+    "version": "1.1",
+    "description": "Context-Aware Agent",
+    "role": "agent",
+    "memory": {
+        "enabled": True,
+        "required": True
+    }
+})
+def context_agent(signal: dict, **kwargs):
+    # The contract will automatically check for suspicious behavior
+    # based on the provided context and memory
+    return {
+        "decision": "APPROVE",
+        "confidence": "high"
+    }
+
+# Use with context
+result = context_agent(
+    signal={},
+    context={
+        "memory": [{
+            "analysis": {
+                "decision": "REJECT",
+                "confidence": "high"
+            }
+        }],
+        "pattern_history": ["REJECT", "REJECT", "REJECT"]
+    }
+)
+```
+
+## Contract Structure
+
+A behavioral contract consists of several key sections:
+
+1. **Basic Information**
+   - `version`: Contract version
+   - `description`: Agent description
+   - `role`: Agent role
+
+2. **Memory Configuration**
+   - `enabled`: Whether memory is enabled
+   - `format`: Memory format
+   - `usage`: How memory is used
+   - `required`: Whether memory is required
+   - `description`: Memory description
+
+3. **Policy Settings**
+   - `pii`: PII handling flag
+   - `compliance_tags`: Required compliance tags
+   - `allowed_tools`: List of allowed tools
+
+4. **Behavioral Flags**
+   - `conservatism`: Agent conservatism level
+   - `verbosity`: Output verbosity
+   - `temperature_control`: Temperature settings
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-MIT License 
+This project is licensed under the MIT License - see the LICENSE file for details. 
