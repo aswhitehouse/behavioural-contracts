@@ -13,8 +13,10 @@ repos:
     -   id: ruff
         args: [--fix]
         types: [python]
+        files: ^(behavioural_contracts|tests)/
     -   id: ruff-format
         types: [python]
+        files: ^(behavioural_contracts|tests)/
 
 -   repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.8.0
@@ -22,6 +24,7 @@ repos:
     -   id: mypy
         additional_dependencies: [pydantic]
         types: [python]
+        files: ^(behavioural_contracts|tests)/
 
 -   repo: https://github.com/pycqa/flake8
     rev: 6.1.0
@@ -29,3 +32,4 @@ repos:
     -   id: flake8
         args: ["--max-line-length=100", "--ignore=E501,W503"]
         types: [python]
+        files: ^(behavioural_contracts|tests)/
