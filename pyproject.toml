@@ -103,6 +103,7 @@ select = [
 ignore = [
     "E501",  # line length violations
     "B008",  # do not perform function calls in argument defaults
+    "RUF022",  # __all__ sorting
 ]
 
 [tool.ruff.lint.isort]
