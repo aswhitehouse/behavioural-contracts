@@ -18,13 +18,6 @@ contract_data = {
     "version": "1.1",
     "description": "Financial Analyst Agent",
     "role": "analyst",
-    "memory": {
-        "enabled": True,
-        "format": "string",
-        "usage": "prompt-append",
-        "required": True,
-        "description": "Market analysis context"
-    },
     "policy": {
         "pii": False,
         "compliance_tags": ["EU-AI-ACT"],
@@ -36,6 +29,30 @@ contract_data = {
         "temperature_control": {
             "mode": "adaptive",
             "range": [0.2, 0.6]
+        }
+    },
+    "response_contract": {
+        "output_format": {
+            "type": "object",
+            "required_fields": [
+                "decision", "confidence", "summary", "reasoning", 
+                "compliance_tags", "temperature_used"
+            ],
+            "on_failure": {
+                "action": "fallback",
+                "max_retries": 1,
+                "fallback": {
+                    "decision": "unknown",
+                    "confidence": "low",
+                    "summary": "Recommendation rejected due to validation failure.",
+                    "reasoning": "The model's response failed validation checks."
+                }
+            }
+        },
+        "max_response_time_ms": 4000,
+        "behaviour_signature": {
+            "key": "decision",
+            "expected_type": "string"
         }
     }
 }
@@ -51,7 +68,8 @@ def analyst_agent(signal: dict, **kwargs):
         "confidence": "high",
         "summary": "Strong buy signal based on technical indicators",
         "reasoning": "Multiple indicators show bullish momentum",
-        "compliance_tags": ["EU-AI-ACT"]
+        "compliance_tags": ["EU-AI-ACT"],
+        "temperature_used": 0.3  # Required field for temperature validation
     }
 ```
 
@@ -68,23 +86,15 @@ from behavioural_contracts import generate_contract
 basic_contract = generate_contract({
     "version": "1.1",
     "description": "Simple Agent",
-    "role": "agent"
-})
-
-# Contract with memory settings
-memory_contract = generate_contract({
-    "version": "1.1",
-    "description": "Memory-Enabled Agent",
     "role": "agent",
-    "memory": {
-        "enabled": True,
-        "format": "string",
-        "usage": "prompt-append",
-        "required": True
+    "response_contract": {
+        "output_format": {
+            "required_fields": ["decision", "confidence", "temperature_used"]
+        }
     }
 })
 
-# Contract with policy
+# Contract with policy and response validation
 policy_contract = generate_contract({
     "version": "1.1",
     "description": "Compliant Agent",
@@ -93,6 +103,14 @@ policy_contract = generate_contract({
         "pii": False,
         "compliance_tags": ["GDPR", "HIPAA"],
         "allowed_tools": ["search", "analyze"]
+    },
+    "response_contract": {
+        "output_format": {
+            "required_fields": [
+                "decision", "confidence", "compliance_tags", "temperature_used"
+            ]
+        },
+        "max_response_time_ms": 2000
     }
 })
 ```
@@ -108,9 +126,11 @@ from behavioural_contracts import format_contract
 formatted = format_contract({
     "version": 1.1,  # Will be converted to string
     "description": "My Agent",
-    "memory": {
-        "enabled": True,  # Will be converted to "true"
-        "required": 1  # Will be converted to "true"
+    "response_contract": {
+        "output_format": {
+            "required_fields": ["decision", "temperature_used"]
+        },
+        "max_response_time_ms": 1000
     }
 })
 ```
@@ -130,65 +150,63 @@ from behavioural_contracts import behavioural_contract
     "policy": {
         "pii": False,
         "compliance_tags": ["FINRA"]
+    },
+    "response_contract": {
+        "output_format": {
+            "required_fields": [
+                "decision", "confidence", "compliance_tags", "temperature_used"
+            ]
+        }
     }
 })
 def trading_agent(signal: dict, **kwargs):
     return {
         "decision": "BUY",
         "confidence": "high",
-        "compliance_tags": ["FINRA"]
-    }
-
-# Using a generated contract
-contract = generate_contract({
-    "version": "1.1",
-    "description": "Analysis Agent",
-    "role": "analyst"
-})
-
-@behavioural_contract(contract)
-def analysis_agent(signal: dict, **kwargs):
-    return {
-        "decision": "ANALYZE",
-        "confidence": "high"
+        "compliance_tags": ["FINRA"],
+        "temperature_used": 0.3
     }
 ```
 
-### 4. Memory and Context Handling
+### 4. Response Validation
 
-The contract system handles memory and context for suspicious behaviour detection:
+The contract system enforces response validation including:
+- Required fields
+- Temperature range validation
+- Response time limits
+- Compliance tag verification
+- PII detection
+- Tool usage validation
 
 ```python
 @behavioural_contract({
     "version": "1.1",
-    "description": "Context-Aware Agent",
+    "description": "Validated Agent",
     "role": "agent",
-    "memory": {
-        "enabled": True,
-        "required": True
+    "behavioural_flags": {
+        "temperature_control": {
+            "range": [0.2, 0.6]
+        }
+    },
+    "response_contract": {
+        "output_format": {
+            "required_fields": [
+                "decision", "confidence", "temperature_used"
+            ]
+        },
+        "max_response_time_ms": 1000
     }
 })
-def context_agent(signal: dict, **kwargs):
-    # The contract will automatically check for suspicious behaviour
-    # based on the provided context and memory
+def validated_agent(signal: dict, **kwargs):
+    # Response will be validated for:
+    # - All required fields present
+    # - Temperature within range
+    # - Response time under 1000ms
     return {
         "decision": "APPROVE",
-        "confidence": "high"
+        "confidence": "high",
+        "temperature_used": 0.3
     }
-
-# Use with context
-result = context_agent(
-    signal={},
-    context={
-        "memory": [{
-            "analysis": {
-                "decision": "REJECT",
-                "confidence": "high"
-            }
-        }],
-        "pattern_history": ["REJECT", "REJECT", "REJECT"]
-    }
-)
 ```
 
 ## Contract Structure
@@ -200,22 +218,25 @@ A behavioural contract consists of several key sections:
    - `description`: Agent description
    - `role`: Agent role
 
-2. **Memory Configuration**
-   - `enabled`: Whether memory is enabled
-   - `format`: Memory format
-   - `usage`: How memory is used
-   - `required`: Whether memory is required
-   - `description`: Memory description
-
-3. **Policy Settings**
+2. **Policy Settings**
    - `pii`: PII handling flag
    - `compliance_tags`: Required compliance tags
    - `allowed_tools`: List of allowed tools
 
-4. **Behavioural Flags**
+3. **Behavioural Flags**
    - `conservatism`: Agent conservatism level
    - `verbosity`: Output verbosity
    - `temperature_control`: Temperature settings
+     - `mode`: Control mode (fixed/adaptive)
+     - `range`: Allowed temperature range [min, max]
+
+4. **Response Contract**
+   - `output_format`: Response structure requirements
+     - `type`: Output type (usually "object")
+     - `required_fields`: List of required fields
+     - `on_failure`: Fallback configuration
+   - `max_response_time_ms`: Maximum allowed response time
+   - `behaviour_signature`: Key field to track for suspicious behavior
 
 ## Contributing
 

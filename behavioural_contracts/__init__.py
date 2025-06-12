@@ -5,7 +5,7 @@ from .generator import generate_contract, format_contract
 from .models import BehaviouralContractSpec, BehaviouralFlags
 from .exceptions import BehaviouralContractViolation
 
-__version__ = "0.1.0"
+__version__ = "0.1.2"
 __all__ = [
     "behavioural_contract",
     "generate_contract",
@@ -13,4 +13,4 @@ __all__ = [
     "BehaviouralContractSpec",
     "BehaviouralFlags",
     "BehaviouralContractViolation"
-] 
+]

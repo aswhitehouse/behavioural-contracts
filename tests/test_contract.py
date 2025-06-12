@@ -1,4 +1,4 @@
-from behavioural_contracts import behavioural_contract, BehaviouralContractViolation
+from behavioural_contracts import behavioural_contract
 
 # Sample contract specification for testing
 TEST_CONTRACT = {

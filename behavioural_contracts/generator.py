@@ -1,5 +1,5 @@
 import json
-from typing import Dict, Any, Union
+from typing import Dict, Any
 
 def generate_contract(spec_data: Dict[str, Any]) -> str:
     """Generate a properly formatted behavioural contract from spec data.

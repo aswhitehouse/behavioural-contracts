@@ -4,7 +4,7 @@ Thank you for your interest in contributing!
 
 ## How to Contribute
 
-1. Fork the repository and create your branch from `main`.
+1. Fork the repository and create your branch from `master`.
 2. Ensure any install or build dependencies are removed before the end of the layer when doing a build.
 3. Update the documentation as needed.
 4. Make sure your code passes all tests and linters.

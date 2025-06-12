@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.8"
 license = "MIT"
 authors = [
-    { name = "Andrew Whitehouse", email = "andrewwhitehouse@example.com" }
+    { name = "Andrew Whitehouse", email = "andrewswhitehouse@gmail.com" }
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
