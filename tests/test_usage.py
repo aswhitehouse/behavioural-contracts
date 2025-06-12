@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, TypeVar, cast
+from typing import Any, Callable, Dict, TypeVar
 
 from behavioural_contracts.contract import behavioural_contract
 
@@ -14,7 +14,7 @@ def behavioural_contract_decorator(
         def wrapper(*args: Any, **kwargs: Any) -> T:
             return func(*args, **kwargs)
 
-        return cast(Callable[..., T], wrapper)
+        return wrapper
 
     return decorator
 
