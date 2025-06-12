@@ -35,7 +35,7 @@ contract_data = {
         "output_format": {
             "type": "object",
             "required_fields": [
-                "decision", "confidence", "summary", "reasoning", 
+                "decision", "confidence", "summary", "reasoning",
                 "compliance_tags", "temperature_used"
             ],
             "on_failure": {
@@ -244,4 +244,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
+This project is licensed under the MIT License - see the LICENSE file for details.

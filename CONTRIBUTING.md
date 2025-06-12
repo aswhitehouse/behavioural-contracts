@@ -18,4 +18,4 @@ Thank you for your interest in contributing!
 - Use the GitHub Issues tab to report bugs or request features.
 
 ## Code of Conduct
-- Be respectful and inclusive in all interactions. 
+- Be respectful and inclusive in all interactions.
