@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - '**'
+  pull_request:
+    branches:
+      - '**'
 
 jobs:
   test:
@@ -22,6 +25,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest pytest-cov pydantic
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install ".[dev]"  # Install dev dependencies including linting tools
       - name: Run tests
         run: |
           python -m pytest tests/ -v --cov=behavioural_contracts
+      - name: Run code quality checks
+        run: |
+          flake8 . --max-line-length=100 --ignore=E501,W503
+          ruff check .
+          ruff format --check .
+          mypy behavioural_contracts tests

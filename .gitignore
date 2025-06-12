@@ -82,4 +82,4 @@ ENV/
 venv/
 
 # Other
-*.log 
+*.log
