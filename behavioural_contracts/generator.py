@@ -38,53 +38,44 @@ def generate_contract(spec_data: Dict[str, Any]) -> str:
         }
     }
     """
-    # Format all values as strings
+    # Format values preserving their types
     formatted = {
-        "version": str(spec_data.get("version", "1.1")),
-        "description": str(spec_data.get("description", "")),
-        "role": str(spec_data.get("role", "")),
+        "version": str(
+            spec_data.get("version", "1.1")
+        ),  # Always convert version to string
+        "description": spec_data.get("description", ""),
+        "role": spec_data.get("role", ""),
         "memory": {
-            "enabled": str(spec_data.get("memory", {}).get("enabled", False)).lower(),
-            "format": str(spec_data.get("memory", {}).get("format", "string")),
-            "usage": str(spec_data.get("memory", {}).get("usage", "prompt-append")),
-            "required": str(spec_data.get("memory", {}).get("required", False)).lower(),
-            "description": str(spec_data.get("memory", {}).get("description", "")),
+            "enabled": spec_data.get("memory", {}).get("enabled", False),
+            "format": spec_data.get("memory", {}).get("format", "string"),
+            "usage": spec_data.get("memory", {}).get("usage", "prompt-append"),
+            "required": spec_data.get("memory", {}).get("required", False),
+            "description": spec_data.get("memory", {}).get("description", ""),
         },
     }
 
     # Add policy if present
     if "policy" in spec_data:
         formatted["policy"] = {
-            "pii": str(spec_data["policy"].get("pii", False)).lower(),
-            "compliance_tags": [
-                str(tag) for tag in spec_data["policy"].get("compliance_tags", [])
-            ],
-            "allowed_tools": [
-                str(tool) for tool in spec_data["policy"].get("allowed_tools", [])
-            ],
+            "pii": spec_data["policy"].get("pii", False),
+            "compliance_tags": spec_data["policy"].get("compliance_tags", []),
+            "allowed_tools": spec_data["policy"].get("allowed_tools", []),
         }
 
     # Add behavioural flags if present
     if "behavioural_flags" in spec_data:
         formatted["behavioural_flags"] = {
-            "conservatism": str(
-                spec_data["behavioural_flags"].get("conservatism", "moderate")
+            "conservatism": spec_data["behavioural_flags"].get(
+                "conservatism", "moderate"
             ),
-            "verbosity": str(
-                spec_data["behavioural_flags"].get("verbosity", "compact")
-            ),
+            "verbosity": spec_data["behavioural_flags"].get("verbosity", "compact"),
             "temperature_control": {
-                "mode": str(
-                    spec_data["behavioural_flags"]["temperature_control"].get(
-                        "mode", "adaptive"
-                    )
+                "mode": spec_data["behavioural_flags"]["temperature_control"].get(
+                    "mode", "adaptive"
                 ),
-                "range": [
-                    float(x)
-                    for x in spec_data["behavioural_flags"]["temperature_control"].get(
-                        "range", [0.2, 0.6]
-                    )
-                ],
+                "range": spec_data["behavioural_flags"]["temperature_control"].get(
+                    "range", [0.2, 0.6]
+                ),
             },
         }
 
