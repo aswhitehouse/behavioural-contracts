@@ -1,7 +1,8 @@
+import functools
 import json
 import logging
 from datetime import datetime
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 from .exceptions import BehaviouralContractViolationError
 from .health_monitor import HealthMonitor
@@ -82,36 +83,13 @@ class BehaviouralContract:
             f"Comparing {behavior_key}s - Stale: {stale_behavior} ({stale_confidence}), Current: {current_behavior}"
         )
 
-        # Check if the decisions are significantly different
-        # For now, we consider them different if they're not the same
-        # In the future, we could use more sophisticated similarity metrics
-        if stale_behavior != current_behavior:
-            # Check if the change is unexpected given the context
-            # For example, if the context suggests the same decision should be made
-            context_suggestion = context.get("context_suggestion", "").lower()
-            if context_suggestion and context_suggestion == stale_behavior:
-                logger.warning(
-                    f"Suspicious behavior detected: Response {current_behavior} contradicts context suggestion {context_suggestion}"
-                )
-                return True
-
-            # Check if the change breaks an established pattern
-            pattern_history = context.get("pattern_history", [])
-            if pattern_history and all(
-                p.lower() == stale_behavior for p in pattern_history[-3:]
-            ):
-                logger.warning(
-                    f"Suspicious behavior detected: Response {current_behavior} breaks from established pattern {pattern_history}"
-                )
-                return True
-
-            # If we get here, the change might be suspicious but not definitively
-            # We'll log it but not flag it as suspicious
-            logger.info(
-                f"Decision changed from {stale_behavior} to {current_behavior}, but not definitively suspicious"
+        # If both are high confidence and different, it's suspicious
+        if current_behavior != stale_behavior:
+            logger.warning(
+                f"Suspicious behavior detected: {stale_behavior} -> {current_behavior}"
             )
+            return True
 
-        logger.info("No suspicious behavior detected")
         return False
 
     def log_contract_event(self, event_type: str, data: Dict[str, Any]) -> None:
@@ -141,14 +119,30 @@ def _create_fallback_response(
     contract_spec: Dict[str, Any], reason: str
 ) -> Dict[str, Any]:
     """Create a fallback response with the given reason."""
-    fallback = contract_spec["response_contract"]["output_format"]["on_failure"][
-        "fallback"
-    ].copy()
-    fallback["reasoning"] = reason
-    for field in ["flagged_for_review", "strike_reason", "temperature_used"]:
-        if field not in fallback:
-            fallback[field] = None if field != "flagged_for_review" else False
-    return dict(fallback)
+    # Create a simple fallback response
+    fallback = {
+        "response": "",
+        "reasoning": reason,
+        "error": "Response validation failed",
+    }
+
+    # Add any required fields from the contract
+    response_contract = contract_spec.get("response_contract", {})
+    if response_contract:
+        output_format = response_contract.get("output_format", {})
+        required_fields = output_format.get("required_fields", [])
+        for field in required_fields:
+            if field not in fallback:
+                if field == "response":
+                    fallback[field] = ""
+                elif field == "confidence":
+                    fallback[field] = "low"
+                elif field == "decision":
+                    fallback[field] = "unknown"
+                else:
+                    fallback[field] = ""
+
+    return fallback
 
 
 def _handle_suspicious_behavior(
@@ -168,14 +162,25 @@ def _validate_response(
 ) -> Tuple[bool, Optional[Dict[str, Any]]]:
     """Validate the response against the contract requirements."""
     try:
-        from behavioural_contracts.validator import validate_response
+        # Simple validation: just check if the response is not empty
+        if not result:
+            logger.warning("Response is empty")
+            raise BehaviouralContractViolationError("Response is empty")
 
-        validate_response(
-            result,
-            contract_spec["response_contract"]["output_format"],
-            contract_spec["policy"],
-            contract_spec.get("behavioural_flags", {}),
-        )
+        # If response_contract specifies required fields, validate them
+        response_contract = contract_spec.get("response_contract", {})
+        if response_contract:
+            output_format = response_contract.get("output_format", {})
+            required_fields = output_format.get("required_fields", [])
+
+            if required_fields:
+                for field in required_fields:
+                    if field not in result:
+                        logger.warning(f"Missing required field: {field}")
+                        raise BehaviouralContractViolationError(
+                            f"Missing required field: {field}"
+                        )
+
         logger.info("Response validation passed")
         return True, None
     except BehaviouralContractViolationError as e:
@@ -184,46 +189,256 @@ def _validate_response(
         return False, fallback
 
 
-def behavioural_contract(
-    version: str,
-    description: str,
-    role: str,
-    policy: Dict[str, Any],
-    behavioural_flags: Dict[str, Any],
-    response_contract: Dict[str, Any],
-    health: Optional[Dict[str, Any]] = None,
-    escalation: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
-    """Create a behavioural contract.
+def _parse_contract_string(contract_str: str) -> Dict[str, Any]:
+    """Parse a contract specification string into a dictionary.
 
     Args:
-        version: Contract version
-        description: Contract description
-        role: Agent role
-        policy: Policy configuration
-        behavioural_flags: Behavioural flags configuration
-        response_contract: Response contract configuration
-        health: Optional health configuration
-        escalation: Optional escalation configuration
+        contract_str: String containing the contract specification
 
     Returns:
-        The behavioural contract
+        Dictionary containing the parsed contract specification
+
+    Raises:
+        BehaviouralContractViolationError: If parsing fails
     """
-    contract = {
-        "version": version,
-        "description": description,
-        "role": role,
-        "policy": policy,
-        "behavioural_flags": behavioural_flags,
-        "response_contract": response_contract,
-    }
+    try:
+        # Remove any whitespace and newlines
+        contract_str = contract_str.strip()
+        # Create a dictionary from the key-value pairs
+        contract_dict: Dict[str, Any] = {}
+        for line in contract_str.split(","):
+            if "=" in line:
+                key, value = line.split("=", 1)
+                key = key.strip()
+                value = value.strip()
+                # Convert string values to Python objects
+                if value.startswith("{") and value.endswith("}"):
+                    parsed_value = json.loads(value)
+                elif value.startswith("[") and value.endswith("]"):
+                    parsed_value = json.loads(value)
+                elif value.lower() in ("true", "false"):
+                    parsed_value = value.lower() == "true"
+                elif value.isdigit():
+                    parsed_value = int(value)
+                elif value.replace(".", "").isdigit():
+                    parsed_value = float(value)
+                else:
+                    # Remove quotes from string values
+                    parsed_value = value.strip("\"'")
+                contract_dict[key] = parsed_value
+        return contract_dict
+    except Exception as e:
+        raise BehaviouralContractViolationError(
+            f"Failed to parse contract specification: {e!s}"
+        ) from e
 
-    if health:
-        contract["health"] = health
-    if escalation:
-        contract["escalation"] = escalation
 
-    return contract
+def _normalize_result(result: Any) -> Dict[str, Any]:
+    """Normalize the result to ensure it's a dictionary.
+
+    Args:
+        result: The result from the decorated function
+
+    Returns:
+        Normalized dictionary result
+    """
+    if not isinstance(result, dict):
+        logger.warning(f"Result is not a dictionary: {type(result)}")
+        # Try to convert to dictionary if it's a Pydantic model
+        if hasattr(result, "model_dump"):
+            result_dict = result.model_dump()
+        elif hasattr(result, "dict"):
+            result_dict = result.dict()
+        else:
+            # Create a simple dictionary with the result
+            result_dict = {"response": str(result)}
+        return result_dict  # type: ignore
+    return result
+
+
+def _create_wrapper(
+    func: Callable[..., Any],
+    contract_spec: Dict[str, Any],
+    contract: BehaviouralContract,
+) -> Callable[..., Any]:
+    """Create the wrapper function for the decorator.
+
+    Args:
+        func: The function to wrap
+        contract_spec: The contract specification
+        contract: The behavioural contract instance
+
+    Returns:
+        Wrapped function
+    """
+
+    @functools.wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        try:
+            # Execute the function
+            result = func(*args, **kwargs)
+
+            # Normalize the result
+            result = _normalize_result(result)
+
+            # Debug: log what we're about to validate
+            logger.info(f"About to validate result: {result}")
+            logger.info(
+                f"Required fields: {contract_spec.get('response_contract', {}).get('output_format', {}).get('required_fields', [])}"
+            )
+
+            # Validate the response
+            is_valid, fallback = _validate_response(result, contract_spec)
+            if not is_valid:
+                logger.warning("Response validation failed, using fallback")
+                return fallback
+
+            # Check for suspicious behavior
+            if contract.is_suspicious_behavior(result, kwargs.get("context")):
+                logger.warning("Suspicious behavior detected")
+                contract.handle_escalation("suspicious_behavior")
+
+            # Log the contract event
+            contract.log_contract_event(
+                "function_call",
+                {
+                    "function": func.__name__,
+                    "args": args,
+                    "kwargs": kwargs,
+                    "result": result,
+                },
+            )
+
+            return result
+        except Exception as e:
+            logger.error(f"Error in wrapped function: {e!s}")
+            contract.handle_escalation("error")
+            raise
+
+    return wrapper
+
+
+def behavioural_contract(
+    contract_spec: Optional[Union[Dict[str, Any], str]] = None, **kwargs: Any
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    """Create a behavioural contract decorator.
+
+    Args:
+        contract_spec: Either a dictionary containing the contract specification,
+                      or a string containing the contract specification in decorator format.
+        **kwargs: Keyword arguments for the contract specification.
+
+    Returns:
+        A decorator function that wraps the decorated function with the behavioural contract.
+
+    Example:
+        # Using a dictionary
+        @behavioural_contract({
+            "version": "1.1",
+            "description": "Test agent",
+            "role": "test",
+            "policy": {
+                "pii": False,
+                "compliance_tags": ["TEST-TAG"],
+                "allowed_tools": ["test_tool"]
+            }
+        })
+        def my_agent():
+            pass
+
+        # Using keyword arguments
+        @behavioural_contract(
+            version="1.1",
+            description="Test agent",
+            role="test",
+            policy={
+                "pii": False,
+                "compliance_tags": ["TEST-TAG"],
+                "allowed_tools": ["test_tool"]
+            }
+        )
+        def my_agent():
+            pass
+
+        # Using a string
+        @behavioural_contract('''
+            version="1.1",
+            description="Test agent",
+            role="test",
+            policy={
+                "pii": False,
+                "compliance_tags": ["TEST-TAG"],
+                "allowed_tools": ["test_tool"]
+            }
+        ''')
+        def my_agent():
+            pass
+    """
+    # If kwargs are provided, use them as the contract specification
+    if kwargs:
+        contract_spec = kwargs
+
+    # Parse string contract if provided
+    if isinstance(contract_spec, str):
+        contract_spec = _parse_contract_string(contract_spec)
+
+    # Ensure contract_spec is not None at this point
+    if contract_spec is None:
+        raise BehaviouralContractViolationError("Contract specification is required")
+
+    # Validate the contract
+    validate_contract(contract_spec)
+
+    # Create the contract instance
+    contract = BehaviouralContract(contract_spec)
+
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+        return _create_wrapper(func, contract_spec, contract)
+
+    return decorator
+
+
+def _validate_required_fields(contract: Dict[str, Any]) -> None:
+    """Validate the required fields in a contract.
+
+    Args:
+        contract: The contract to validate
+
+    Raises:
+        BehaviouralContractViolationError: If any required field is missing
+    """
+    if not contract.get("version"):
+        raise BehaviouralContractViolationError("Contract version is required")
+
+    if not contract.get("description"):
+        raise BehaviouralContractViolationError("Contract description is required")
+
+    if not contract.get("role"):
+        raise BehaviouralContractViolationError("Contract role is required")
+
+
+def _validate_optional_fields(contract: Dict[str, Any]) -> None:
+    """Validate the optional fields in a contract.
+
+    Args:
+        contract: The contract to validate
+
+    Raises:
+        BehaviouralContractViolationError: If any optional field has invalid type
+    """
+    optional_fields = [
+        "behavioural_flags",
+        "response_contract",
+        "policy",
+        "memory_config",
+        "teardown_policy",
+    ]
+
+    for field in optional_fields:
+        if field in contract:
+            field_value = contract[field]
+            if not isinstance(field_value, dict):
+                raise BehaviouralContractViolationError(f"{field} must be a dictionary")
 
 
 def validate_contract(contract: Dict[str, Any]) -> None:
@@ -235,31 +450,8 @@ def validate_contract(contract: Dict[str, Any]) -> None:
     Raises:
         BehaviouralContractViolationError: If the contract is invalid
     """
-    # Validate version
-    if not contract.get("version"):
-        raise BehaviouralContractViolationError("Contract version is required")
-
-    # Validate description
-    if not contract.get("description"):
-        raise BehaviouralContractViolationError("Contract description is required")
-
-    # Validate role
-    if not contract.get("role"):
-        raise BehaviouralContractViolationError("Contract role is required")
-
-    # Validate policy
-    if not contract.get("policy", {}).get("compliance_tags"):
-        raise BehaviouralContractViolationError(
-            "At least one compliance tag is required"
-        )
-    if not contract.get("policy", {}).get("allowed_tools"):
-        raise BehaviouralContractViolationError("At least one allowed tool is required")
-
-    # Validate behavioural flags
-    if not contract.get("behavioural_flags", {}).get("conservatism"):
-        raise BehaviouralContractViolationError("Conservatism level is required")
-    if not contract.get("behavioural_flags", {}).get("verbosity"):
-        raise BehaviouralContractViolationError("Verbosity level is required")
+    _validate_required_fields(contract)
+    _validate_optional_fields(contract)
 
 
 def is_suspicious_behavior(
