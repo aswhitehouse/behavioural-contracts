@@ -238,6 +238,11 @@ A behavioural contract consists of several key sections:
    - `max_response_time_ms`: Maximum allowed response time
    - `behaviour_signature`: Key field to track for suspicious behavior
 
+## Python Installation
+[![PyPI version](https://img.shields.io/pypi/v/behavioural-contracts)](https://pypi.org/project/behavioural-contracts/)
+[![Python versions](https://img.shields.io/pypi/pyversions/behavioural-contracts)](https://pypi.org/project/behavioural-contracts/)
+[![License](https://img.shields.io/pypi/l/behavioural-contracts)](https://pypi.org/project/behavioural-contracts/)
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
