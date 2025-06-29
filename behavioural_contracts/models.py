@@ -76,13 +76,11 @@ class Health(BaseModel):
 class Escalation(BaseModel):
     on_unexpected_output: str = Field(..., description="Action on unexpected output")
     on_context_mismatch: str = Field(..., description="Action on context mismatch")
-    fallback_role: str = Field(..., description="Fallback role to use")
 
 
 class BehaviouralContractSpec(BaseModel):
     version: str
     description: str
-    role: str
     policy: Policy
     behavioural_flags: BehaviouralFlags
     response_contract: ResponseContract

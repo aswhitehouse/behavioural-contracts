@@ -275,7 +275,6 @@ class FallbackResponse(BaseModel):
 class BehaviouralContract(BaseModel):
     version: str
     description: str
-    role: str
     policy: Policy
     behavioural_flags: BehaviouralFlags
     response_contract: ResponseContract
@@ -299,10 +298,6 @@ def validate_contract(contract: BehaviouralContract) -> None:
     # Validate description
     if not contract.description:
         raise BehaviouralContractViolationError("Contract description is required")
-
-    # Validate role
-    if not contract.role:
-        raise BehaviouralContractViolationError("Contract role is required")
 
     # Validate policy
     if not contract.policy.compliance_tags:

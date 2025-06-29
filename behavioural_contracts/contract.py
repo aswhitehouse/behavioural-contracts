@@ -16,7 +16,6 @@ class BehaviouralContract:
     def __init__(self, contract_spec: Dict[str, Any]) -> None:
         self.version = contract_spec.get("version", "1.0")
         self.description = contract_spec.get("description", "")
-        self.role = contract_spec.get("role", "default")
         self.policy = contract_spec.get("policy", {})
         self.behavioural_flags = contract_spec.get("behavioural_flags", {})
         self.response_contract = contract_spec.get("response_contract", {})
@@ -34,9 +33,7 @@ class BehaviouralContract:
         self.response_validator = ResponseValidator(
             self.response_contract.get("output_format", {}).get("required_fields", [])
         )
-        logger.info(
-            f"BehaviouralContract initialized with version={self.version}, role={self.role}"
-        )
+        logger.info(f"BehaviouralContract initialized with version={self.version}")
 
     def is_suspicious_behavior(
         self, response: Dict[str, Any], context: Optional[Dict[str, Any]] = None
@@ -99,7 +96,6 @@ class BehaviouralContract:
                     "timestamp": datetime.now().isoformat(),
                     "event_type": event_type,
                     "contract_version": self.version,
-                    "role": self.role,
                     "data": data,
                 }
             )
@@ -336,7 +332,6 @@ def behavioural_contract(
         @behavioural_contract({
             "version": "1.1",
             "description": "Test agent",
-            "role": "test",
             "policy": {
                 "pii": False,
                 "compliance_tags": ["TEST-TAG"],
@@ -350,7 +345,6 @@ def behavioural_contract(
         @behavioural_contract(
             version="1.1",
             description="Test agent",
-            role="test",
             policy={
                 "pii": False,
                 "compliance_tags": ["TEST-TAG"],
@@ -364,7 +358,6 @@ def behavioural_contract(
         @behavioural_contract('''
             version="1.1",
             description="Test agent",
-            role="test",
             policy={
                 "pii": False,
                 "compliance_tags": ["TEST-TAG"],
@@ -412,9 +405,6 @@ def _validate_required_fields(contract: Dict[str, Any]) -> None:
 
     if not contract.get("description"):
         raise BehaviouralContractViolationError("Contract description is required")
-
-    if not contract.get("role"):
-        raise BehaviouralContractViolationError("Contract role is required")
 
 
 def _validate_optional_fields(contract: Dict[str, Any]) -> None:

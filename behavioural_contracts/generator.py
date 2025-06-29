@@ -18,7 +18,6 @@ def generate_contract_dict(spec_data: Dict[str, Any]) -> Dict[str, Any]:
     formatted = {
         "version": str(spec_data.get("version", "1.1")),
         "description": spec_data.get("description", ""),
-        "role": spec_data.get("role", ""),
     }
     if "policy" in spec_data:
         formatted["policy"] = {
@@ -61,7 +60,6 @@ def generate_contract(spec_data: Dict[str, Any]) -> str:
     decorator_parts = []
     decorator_parts.append(f'version="{formatted["version"]}",')
     decorator_parts.append(f'description="{formatted["description"]}",')
-    decorator_parts.append(f'role="{formatted["role"]}",')
     if "policy" in formatted:
         policy_str = json.dumps(
             formatted["policy"], indent=4, cls=PythonJSONEncoder

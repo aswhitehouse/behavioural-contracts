@@ -12,7 +12,6 @@ def test_simple_contract_creation():
     contract_spec: Dict[str, Any] = {
         "version": "0.1.2",
         "description": "Simple chat response",
-        "role": "chat_agent",
         "behavioural_flags": {"conservatism": "moderate", "verbosity": "compact"},
         "response_contract": {"output_format": {"required_fields": ["response"]}},
     }
@@ -23,7 +22,6 @@ def test_simple_contract_creation():
     # Check that all required fields are present
     assert contract_spec["version"] == "0.1.2"
     assert contract_spec["description"] == "Simple chat response"
-    assert contract_spec["role"] == "chat_agent"
 
     # Check optional fields
     behavioural_flags = contract_spec["behavioural_flags"]
@@ -46,7 +44,6 @@ def test_minimal_contract_creation():
     contract_spec = {
         "version": "0.1.2",
         "description": "Simple chat response",
-        "role": "chat_agent",
     }
 
     # Validate the contract
@@ -55,7 +52,6 @@ def test_minimal_contract_creation():
     # Check that only required fields are present
     assert contract_spec["version"] == "0.1.2"
     assert contract_spec["description"] == "Simple chat response"
-    assert contract_spec["role"] == "chat_agent"
 
     # Check that optional fields are not present
     assert "behavioural_flags" not in contract_spec
@@ -70,21 +66,14 @@ def test_missing_required_fields():
     with pytest.raises(
         BehaviouralContractViolationError, match="Contract version is required"
     ):
-        contract_spec = {"description": "Simple chat response", "role": "chat_agent"}
+        contract_spec = {"description": "Simple chat response"}
         validate_contract(contract_spec)
 
     # Missing description
     with pytest.raises(
         BehaviouralContractViolationError, match="Contract description is required"
     ):
-        contract_spec = {"version": "0.1.2", "role": "chat_agent"}
-        validate_contract(contract_spec)
-
-    # Missing role
-    with pytest.raises(
-        BehaviouralContractViolationError, match="Contract role is required"
-    ):
-        contract_spec = {"version": "0.1.2", "description": "Simple chat response"}
+        contract_spec = {"version": "0.1.2"}
         validate_contract(contract_spec)
 
 
@@ -99,7 +88,6 @@ def test_invalid_field_types():
         contract_spec = {
             "version": "0.1.2",
             "description": "Simple chat response",
-            "role": "chat_agent",
             "behavioural_flags": "not a dict",
         }
         validate_contract(contract_spec)
@@ -112,7 +100,6 @@ def test_invalid_field_types():
         contract_spec = {
             "version": "0.1.2",
             "description": "Simple chat response",
-            "role": "chat_agent",
             "response_contract": "not a dict",
         }
         validate_contract(contract_spec)
@@ -124,7 +111,6 @@ def test_contract_decorator_usage():
     @behavioural_contract(
         version="0.1.2",
         description="Simple chat response",
-        role="chat_agent",
         behavioural_flags={"conservatism": "moderate", "verbosity": "compact"},
         response_contract={"output_format": {"required_fields": ["response"]}},
     )
@@ -142,7 +128,6 @@ def test_contract_decorator_with_invalid_response():
     @behavioural_contract(
         version="0.1.2",
         description="Simple chat response",
-        role="chat_agent",
         response_contract={"output_format": {"required_fields": ["response"]}},
     )
     def chat_agent(message: str) -> dict:
@@ -160,9 +145,7 @@ def test_contract_decorator_with_invalid_response():
 def test_contract_decorator_with_empty_response():
     """Test that the decorator handles empty responses correctly."""
 
-    @behavioural_contract(
-        version="0.1.2", description="Simple chat response", role="chat_agent"
-    )
+    @behavioural_contract(version="0.1.2", description="Simple chat response")
     def chat_agent(message: str) -> dict:
         # Return an empty response
         return {}

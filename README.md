@@ -17,7 +17,6 @@ from behavioural_contracts import behavioural_contract, generate_contract
 contract_data = {
     "version": "1.1",
     "description": "Financial Analyst Agent",
-    "role": "analyst",
     "policy": {
         "pii": False,
         "compliance_tags": ["EU-AI-ACT"],
@@ -86,7 +85,6 @@ from behavioural_contracts import generate_contract
 basic_contract = generate_contract({
     "version": "1.1",
     "description": "Simple Agent",
-    "role": "agent",
     "response_contract": {
         "output_format": {
             "required_fields": ["decision", "confidence", "temperature_used"]
@@ -98,7 +96,6 @@ basic_contract = generate_contract({
 policy_contract = generate_contract({
     "version": "1.1",
     "description": "Compliant Agent",
-    "role": "agent",
     "policy": {
         "pii": False,
         "compliance_tags": ["GDPR", "HIPAA"],
@@ -146,7 +143,6 @@ from behavioural_contracts import behavioural_contract
 @behavioural_contract({
     "version": "1.1",
     "description": "Trading Agent",
-    "role": "trader",
     "policy": {
         "pii": False,
         "compliance_tags": ["FINRA"]
@@ -182,7 +178,6 @@ The contract system enforces response validation including:
 @behavioural_contract({
     "version": "1.1",
     "description": "Validated Agent",
-    "role": "agent",
     "behavioural_flags": {
         "temperature_control": {
             "range": [0.2, 0.6]
@@ -216,7 +211,6 @@ A behavioural contract consists of several key sections:
 1. **Basic Information**
    - `version`: Contract version
    - `description`: Agent description
-   - `role`: Agent role
 
 2. **Policy Settings**
    - `pii`: PII handling flag
